@@ -1,5 +1,5 @@
 --==================================================
--- NOVA UI SYSTEM v4.1 FINAL FIX
+-- NOVA UI v4.1 FULL FIX
 --==================================================
 
 local Players = game:GetService("Players")
@@ -12,6 +12,7 @@ local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local Camera = workspace.CurrentCamera
 
+-- Удаляем старый GUI
 local old = PlayerGui:FindFirstChild("NovaUI")
 if old then
     old:Destroy()
@@ -266,17 +267,10 @@ Corner(Main,30)
 Main.Parent = Gui
 
 --==================================================
--- FORWARD DECLARATIONS
+-- START MENU
 --==================================================
 
-local StartMenu
-local SwitchTab
-
---==================================================
--- START MENU FUNCTION
---==================================================
-
-StartMenu = function()
+local function StartMenu()
     if State.readyProcessed then return end
     State.readyProcessed = true
     
@@ -748,7 +742,7 @@ end
 -- TAB SWITCHING
 --==================================================
 
-SwitchTab = function(tab)
+local function SwitchTab(tab)
     if tab == "software" then
         Status.Visible = true
         SettingsFrame.Visible = false
@@ -1057,12 +1051,10 @@ end)
 -- RUN LOOP
 --==================================================
 
--- Рендер для частиц
 RunService.Heartbeat:Connect(function()
     UpdateParticles()
 end)
 
--- Основной цикл аима
 RunService.RenderStepped:Connect(function(dt)
     pcall(UpdateAim, dt)
 end)
