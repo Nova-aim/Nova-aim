@@ -1,7 +1,6 @@
--- Nova v2.54.1
--- Бля, теперь с нормальными аватарками и выбором друзей
+-- Nova v2.55
+-- Загрузочный экран в стиле Termux, бля
 
--- Подключаем нужную хуйню
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,30 +8,328 @@ local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local Player = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
+local TextService = game:GetService("TextService")
+local HttpService = game:GetService("HttpService")
 
--- Чистим старый мусор
+-- Чистим мусор
 if CoreGui:FindFirstChild("Nova") then
     CoreGui.Nova:Destroy()
 end
 
--- Цвета для темы
+-- Тема как в терминале
 local Theme = {
-    bg = Color3.fromRGB(28, 28, 35),
-    surface = Color3.fromRGB(38, 38, 45),
-    surfaceHi = Color3.fromRGB(48, 48, 55),
-    border = Color3.fromRGB(58, 58, 65),
-    accent = Color3.fromRGB(80, 200, 255),
-    green = Color3.fromRGB(80, 230, 140),
-    red = Color3.fromRGB(255, 100, 110),
-    amber = Color3.fromRGB(255, 200, 80),
-    text = Color3.fromRGB(220, 225, 235),
-    textMuted = Color3.fromRGB(150, 155, 165),
+    bg = Color3.fromRGB(10, 10, 12),
+    surface = Color3.fromRGB(20, 20, 25),
+    surfaceHi = Color3.fromRGB(30, 30, 35),
+    accent = Color3.fromRGB(0, 200, 100),
+    text = Color3.fromRGB(180, 220, 200),
+    textMuted = Color3.fromRGB(100, 130, 110),
+    red = Color3.fromRGB(255, 80, 80),
+    green = Color3.fromRGB(80, 255, 130),
+    amber = Color3.fromRGB(255, 200, 50),
+    cursor = Color3.fromRGB(0, 255, 100),
 }
 
 local FONT = Enum.Font.SourceSans
 
--- Всякое состояние
-local State = {
+-- Состояние загрузки
+local BootState = {
+    phase = 0, -- 0=загрузка, 1=готов, 2=запущен
+    ready = false,
+    animating = false,
+    termuxActive = false,
+    inputBuffer = "",
+    cursorBlink = false,
+    cursorTimer = 0,
+    startupProgress = 0,
+    showCursor = true,
+}
+
+-- ============================================
+-- ЗАГРУЗОЧНЫЙ ЭКРАН (Termux стиль)
+-- ============================================
+
+local function CreateBootScreen()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "NovaBoot"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.Parent = CoreGui
+    gui.DisplayOrder = 9999
+    
+    -- Чёрный фон как в терминале
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Theme.bg
+    bg.BorderSizePixel = 0
+    bg.Parent = gui
+    
+    -- Иконка Termux (просто зелёный квадрат с буквой >)
+    local termIcon = Instance.new("Frame")
+    termIcon.Size = UDim2.new(0, 60, 0, 60)
+    termIcon.Position = UDim2.new(0.5, -30, 0.3, -30)
+    termIcon.BackgroundColor3 = Theme.accent
+    termIcon.BackgroundTransparency = 0.9
+    termIcon.BorderSizePixel = 2
+    termIcon.BorderColor3 = Theme.accent
+    termIcon.Parent = bg
+    local iconCorner = Instance.new("UICorner")
+    iconCorner.CornerRadius = UDim.new(0, 8)
+    iconCorner.Parent = termIcon
+    
+    local termLabel = Instance.new("TextLabel")
+    termLabel.Size = UDim2.new(1, 0, 1, 0)
+    termLabel.BackgroundTransparency = 1
+    termLabel.Text = ">"
+    termLabel.TextColor3 = Theme.accent
+    termLabel.TextSize = 32
+    termLabel.Font = FONT
+    termLabel.Parent = termIcon
+    
+    -- Консольный вывод
+    local console = Instance.new("ScrollingFrame")
+    console.Size = UDim2.new(0, 400, 0, 200)
+    console.Position = UDim2.new(0.5, -200, 0.5, -50)
+    console.BackgroundColor3 = Theme.surface
+    console.BackgroundTransparency = 0.3
+    console.BorderSizePixel = 1
+    console.BorderColor3 = Theme.textMuted
+    console.BorderSizePixel = 1
+    console.Parent = bg
+    local consoleCorner = Instance.new("UICorner")
+    consoleCorner.CornerRadius = UDim.new(0, 4)
+    consoleCorner.Parent = console
+    
+    -- Заголовок консоли
+    local consoleHeader = Instance.new("Frame")
+    consoleHeader.Size = UDim2.new(1, 0, 0, 24)
+    consoleHeader.BackgroundColor3 = Theme.surfaceHi
+    consoleHeader.BackgroundTransparency = 0.5
+    consoleHeader.BorderSizePixel = 0
+    consoleHeader.Parent = console
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 4)
+    headerCorner.Parent = consoleHeader
+    
+    local headerText = Instance.new("TextLabel")
+    headerText.Size = UDim2.new(1, -20, 1, 0)
+    headerText.Position = UDim2.new(0, 8, 0, 0)
+    headerText.BackgroundTransparency = 1
+    headerText.Text = "termux >"
+    headerText.TextColor3 = Theme.text
+    headerText.TextSize = 11
+    headerText.Font = FONT
+    headerText.TextXAlignment = Enum.TextXAlignment.Left
+    headerText.Parent = consoleHeader
+    
+    local headerClose = Instance.new("TextLabel")
+    headerClose.Size = UDim2.new(0, 20, 1, 0)
+    headerClose.Position = UDim2.new(1, -24, 0, 0)
+    headerClose.BackgroundTransparency = 1
+    headerClose.Text = "✕"
+    headerClose.TextColor3 = Theme.red
+    headerClose.TextSize = 12
+    headerClose.Font = FONT
+    headerClose.Parent = consoleHeader
+    
+    -- Текст консоли
+    local consoleText = Instance.new("TextLabel")
+    consoleText.Size = UDim2.new(1, -16, 1, -30)
+    consoleText.Position = UDim2.new(0, 8, 0, 28)
+    consoleText.BackgroundTransparency = 1
+    consoleText.Text = ""
+    consoleText.TextColor3 = Theme.text
+    consoleText.TextSize = 13
+    consoleText.Font = FONT
+    consoleText.TextXAlignment = Enum.TextXAlignment.Left
+    consoleText.TextYAlignment = Enum.TextYAlignment.Top
+    consoleText.RichText = true
+    consoleText.LineHeight = 1.2
+    consoleText.Parent = console
+    
+    -- Строка ввода (Termux стиль)
+    local inputFrame = Instance.new("Frame")
+    inputFrame.Size = UDim2.new(1, -16, 0, 28)
+    inputFrame.Position = UDim2.new(0, 8, 1, -32)
+    inputFrame.BackgroundColor3 = Theme.surfaceHi
+    inputFrame.BackgroundTransparency = 0.5
+    inputFrame.BorderSizePixel = 0
+    inputFrame.Parent = console
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 4)
+    inputCorner.Parent = inputFrame
+    
+    local inputLabel = Instance.new("TextLabel")
+    inputLabel.Size = UDim2.new(1, -20, 1, 0)
+    inputLabel.Position = UDim2.new(0, 6, 0, 0)
+    inputLabel.BackgroundTransparency = 1
+    inputLabel.Text = "$ "
+    inputLabel.TextColor3 = Theme.accent
+    inputLabel.TextSize = 13
+    inputLabel.Font = FONT
+    inputLabel.TextXAlignment = Enum.TextXAlignment.Left
+    inputLabel.Parent = inputFrame
+    
+    local inputField = Instance.new("TextBox")
+    inputField.Size = UDim2.new(1, -30, 1, 0)
+    inputField.Position = UDim2.new(0, 18, 0, 0)
+    inputField.BackgroundTransparency = 1
+    inputField.Text = ""
+    inputField.TextColor3 = Theme.text
+    inputField.TextSize = 13
+    inputField.Font = FONT
+    inputField.TextXAlignment = Enum.TextXAlignment.Left
+    inputField.ClearTextOnFocus = false
+    inputField.Parent = inputFrame
+    
+    -- Курсор мигающий
+    local cursor = Instance.new("Frame")
+    cursor.Size = UDim2.new(0, 2, 0, 16)
+    cursor.Position = UDim2.new(0, 0, 0.5, -8)
+    cursor.BackgroundColor3 = Theme.cursor
+    cursor.BorderSizePixel = 0
+    cursor.Parent = inputFrame
+    cursor.Visible = true
+    
+    -- Полоса загрузки
+    local progressBar = Instance.new("Frame")
+    progressBar.Size = UDim2.new(0, 300, 0, 4)
+    progressBar.Position = UDim2.new(0.5, -150, 0.85, 0)
+    progressBar.BackgroundColor3 = Theme.surfaceHi
+    progressBar.BorderSizePixel = 0
+    progressBar.Parent = bg
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(1, 0)
+    barCorner.Parent = progressBar
+    
+    local barFill = Instance.new("Frame")
+    barFill.Size = UDim2.new(0, 0, 1, 0)
+    barFill.BackgroundColor3 = Theme.accent
+    barFill.BorderSizePixel = 0
+    barFill.Parent = progressBar
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = barFill
+    
+    local statusText = Instance.new("TextLabel")
+    statusText.Size = UDim2.new(0, 300, 0, 20)
+    statusText.Position = UDim2.new(0.5, -150, 0.88, 0)
+    statusText.BackgroundTransparency = 1
+    statusText.Text = "загрузка..."
+    statusText.TextColor3 = Theme.textMuted
+    statusText.TextSize = 11
+    statusText.Font = FONT
+    statusText.Parent = bg
+    
+    -- Анимация иконки Termux (пульсация)
+    local pulse = TweenService:Create(termIcon, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1, true), {
+        BackgroundTransparency = 0.7
+    })
+    pulse:Play()
+    
+    -- Функция вывода в консоль
+    function ConsoleLog(msg, color)
+        local current = consoleText.Text
+        local time = os.date("%H:%M:%S")
+        local colorHex = color and string.format("<font color='rgb(%d,%d,%d)'>", color.R*255, color.G*255, color.B*255) or ""
+        local reset = color and "</font>" or ""
+        consoleText.Text = current .. colorHex .. time .. " " .. msg .. reset .. "\n"
+        console.CanvasPosition = Vector2.new(0, consoleText.TextBounds.Y)
+    end
+    
+    -- Функция обновления прогресса
+    function UpdateProgress(pct, msg)
+        barFill.Size = UDim2.new(pct, 0, 1, 0)
+        statusText.Text = msg
+    end
+    
+    -- Ввод с клавиатуры
+    inputField.Focused:Connect(function()
+        BootState.termuxActive = true
+        if UserInputService.TouchEnabled then
+            inputField:CaptureFocus()
+        end
+    end)
+    
+    inputField.FocusLost:Connect(function()
+        BootState.termuxActive = false
+    end)
+    
+    inputField:GetPropertyChangedSignal("Text"):Connect(function()
+        local text = inputField.Text
+        if text:sub(1, 2) == "$ " then
+            text = text:sub(3)
+        end
+        BootState.inputBuffer = text
+    end)
+    
+    -- Обработка ввода
+    inputField.FocusLost:Connect(function(enterPressed)
+        if enterPressed and BootState.inputBuffer ~= "" then
+            local cmd = BootState.inputBuffer
+            inputField.Text = ""
+            BootState.inputBuffer = ""
+            
+            if BootState.phase == 1 then
+                if cmd:lower() == "y" then
+                    BootState.ready = true
+                    ConsoleLog("> запуск...", Theme.green)
+                    StartNova()
+                elseif cmd:lower() == "n" then
+                    ConsoleLog("> отмена. Перезапустите скрипт.", Theme.amber)
+                else
+                    ConsoleLog("> введите y или n", Theme.red)
+                end
+            end
+        end
+    end)
+    
+    -- Для мобильных: клик по экрану вызывает клавиатуру
+    local function ShowKeyboard()
+        if BootState.phase == 1 then
+            inputField:CaptureFocus()
+            inputField:ReleaseFocus()
+            inputField:CaptureFocus()
+        end
+    end
+    
+    bg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            ShowKeyboard()
+        end
+    end)
+    
+    -- Обновление курсора
+    task.spawn(function()
+        while gui and gui.Parent do
+            BootState.cursorTimer = BootState.cursorTimer + 0.5
+            BootState.cursorBlink = not BootState.cursorBlink
+            cursor.Visible = BootState.cursorBlink and inputField:IsFocused()
+            task.wait(0.5)
+        end
+    end)
+    
+    return {
+        gui = gui,
+        consoleText = consoleText,
+        progressBar = barFill,
+        statusText = statusText,
+        inputField = inputField,
+        cursor = cursor,
+        ConsoleLog = ConsoleLog,
+        UpdateProgress = UpdateProgress,
+        bg = bg,
+        termIcon = termIcon,
+    }
+end
+
+local Boot = CreateBootScreen()
+
+-- ============================================
+-- ОСНОВНОЙ СОФТ (Nova)
+-- ============================================
+
+local NovaState = {
     enabled = false,
     target = nil,
     targetCF = nil,
@@ -43,17 +340,14 @@ local State = {
     lostTimer = 0,
     searchTimer = 0,
     xrayTimer = 0,
-    showFriendSelector = false,
 }
 
--- Для X-Ray
 local XRay = {
     enabled = true,
     boxes = {},
     container = nil,
 }
 
--- Настройки
 local Config = {
     AimPart = "Head",
     BackupPart = "UpperTorso",
@@ -62,8 +356,7 @@ local Config = {
     Distance = 250,
 }
 
--- Вспомогательная хуйня
-
+-- Вспомогательные функции
 local function IsAlive(plr)
     if not plr or not plr.Parent then return false end
     if not plr.Character or not plr.Character.Parent then return false end
@@ -73,7 +366,7 @@ end
 
 local function IsFriend(plr)
     if not plr then return false end
-    for _, f in ipairs(State.friends) do
+    for _, f in ipairs(NovaState.friends) do
         if f == plr then return true end
     end
     return false
@@ -86,46 +379,38 @@ local function Round(inst, r)
     return c
 end
 
--- Создание аватарки (из профиля)
 local function MakeAvatar(plr, size)
     local container = Instance.new("Frame")
     container.Size = UDim2.new(0, size, 0, size)
-    container.BackgroundColor3 = Theme.surface
+    container.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     container.ClipsDescendants = true
     container.BorderSizePixel = 0
     Round(container, 999)
     
     local img = Instance.new("ImageLabel")
     img.Size = UDim2.new(1, 0, 1, 0)
-    img.BackgroundColor3 = Theme.surface
+    img.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     img.ScaleType = Enum.ScaleType.Fit
     img.BorderSizePixel = 0
-    
-    -- Загружаем аву из профиля
     pcall(function()
-        local thumbType = Enum.ThumbnailType.HeadShot
-        local thumbSize = Enum.ThumbnailSize.Size420x420
-        img.Image = Players:GetUserThumbnailAsync(plr.UserId, thumbType, thumbSize)
+        img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
     end)
-    
     img.Parent = container
     Round(img, 999)
-    
     return container
 end
 
--- Создаём интерфейс
-
+-- Создание основного интерфейса
 local UI = {}
-local PlayerGui = Player:WaitForChild("PlayerGui")
 
 function UI:Build()
     local gui = Instance.new("ScreenGui")
-    gui.Name = "Nova"
+    gui.Name = "NovaMain"
     gui.ResetOnSpawn = false
     gui.IgnoreGuiInset = true
     gui.Parent = CoreGui
     gui.DisplayOrder = 999
+    gui.Enabled = false
     
     -- Главное окно
     local main = Instance.new("Frame")
@@ -158,7 +443,7 @@ function UI:Build()
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = header
     
-    -- Кнопки управления (точки)
+    -- Кнопки (точки)
     local function Dot(x, col)
         local d = Instance.new("Frame")
         d.Size = UDim2.new(0, 12, 0, 12)
@@ -186,7 +471,6 @@ function UI:Build()
     status.TextXAlignment = Enum.TextXAlignment.Left
     status.Parent = main
     
-    -- Цель
     local targetLabel = Instance.new("TextLabel")
     targetLabel.Size = UDim2.new(1, -20, 0, 20)
     targetLabel.Position = UDim2.new(0, 10, 0, 66)
@@ -221,7 +505,7 @@ function UI:Build()
     local btnFriend = MakeBtn("> friends (0)", 202, Theme.amber)
     local btnExit = MakeBtn("> exit", 238, Theme.red)
     
-    -- Консольный вывод
+    -- Консоль
     local console = Instance.new("Frame")
     console.Size = UDim2.new(1, -20, 0, 28)
     console.Position = UDim2.new(0, 10, 0, 276)
@@ -263,7 +547,7 @@ function UI:Build()
     crosshair.Parent = gui
     Round(crosshair, 999)
     
-    -- Окно выбора друзей (скрытое)
+    -- Окно друзей
     local friendWindow = Instance.new("Frame")
     friendWindow.Size = UDim2.new(0, 380, 0, 300)
     friendWindow.Position = UDim2.new(0.5, -190, 0.5, -150)
@@ -275,7 +559,6 @@ function UI:Build()
     friendWindow.Parent = gui
     Round(friendWindow, 12)
     
-    -- Заголовок окна друзей
     local friendHeader = Instance.new("Frame")
     friendHeader.Size = UDim2.new(1, 0, 0, 36)
     friendHeader.BackgroundColor3 = Theme.surface
@@ -303,7 +586,6 @@ function UI:Build()
     friendClose.Parent = friendHeader
     Round(friendClose, 999)
     
-    -- Список игроков
     local playerList = Instance.new("ScrollingFrame")
     playerList.Size = UDim2.new(1, -16, 1, -50)
     playerList.Position = UDim2.new(0, 8, 0, 44)
@@ -320,16 +602,13 @@ function UI:Build()
     playerLayout.SortOrder = Enum.SortOrder.LayoutOrder
     playerLayout.Parent = playerList
     
-    -- Функция обновления списка друзей
     function UI:UpdateFriendList()
-        -- Чистим список
         for _, child in pairs(playerList:GetChildren()) do
             if child:IsA("TextButton") then
                 child:Destroy()
             end
         end
         
-        -- Собираем всех игроков
         local players = {}
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= Player then
@@ -350,7 +629,6 @@ function UI:Build()
             return
         end
         
-        -- Сортируем по имени
         table.sort(players, function(a, b) return a.Name < b.Name end)
         
         for _, plr in ipairs(players) do
@@ -358,18 +636,16 @@ function UI:Build()
             
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(1, 0, 0, 40)
-            btn.BackgroundColor3 = isFriend and Theme.greenDim or Theme.surface
+            btn.BackgroundColor3 = isFriend and Color3.fromRGB(20, 60, 30) or Theme.surface
             btn.BackgroundTransparency = isFriend and 0.7 or 0.3
             btn.BorderSizePixel = 0
             btn.Parent = playerList
             Round(btn, 6)
             
-            -- Аватарка
             local avatar = MakeAvatar(plr, 32)
             avatar.Position = UDim2.new(0, 4, 0.5, -16)
             avatar.Parent = btn
             
-            -- Имя
             local name = Instance.new("TextLabel")
             name.Size = UDim2.new(1, -80, 1, 0)
             name.Position = UDim2.new(0, 42, 0, 0)
@@ -381,7 +657,6 @@ function UI:Build()
             name.TextXAlignment = Enum.TextXAlignment.Left
             name.Parent = btn
             
-            -- Статус (друг или нет)
             local statusIcon = Instance.new("TextLabel")
             statusIcon.Size = UDim2.new(0, 30, 1, 0)
             statusIcon.Position = UDim2.new(1, -34, 0, 0)
@@ -392,29 +667,25 @@ function UI:Build()
             statusIcon.Font = FONT
             statusIcon.Parent = btn
             
-            -- Клик по кнопке
             btn.MouseButton1Click:Connect(function()
                 if isFriend then
-                    -- Удаляем из друзей
-                    for i, f in ipairs(State.friends) do
+                    for i, f in ipairs(NovaState.friends) do
                         if f == plr then
-                            table.remove(State.friends, i)
+                            table.remove(NovaState.friends, i)
                             break
                         end
                     end
                     UI:Log("removed: " .. plr.Name)
-                    UI.btnFriend.Text = "> friends (" .. #State.friends .. ")"
+                    UI.btnFriend.Text = "> friends (" .. #NovaState.friends .. ")"
                     UI:UpdateFriendList()
                 else
-                    -- Добавляем в друзья
-                    table.insert(State.friends, plr)
+                    table.insert(NovaState.friends, plr)
                     UI:Log("added: " .. plr.Name)
-                    UI.btnFriend.Text = "> friends (" .. #State.friends .. ")"
+                    UI.btnFriend.Text = "> friends (" .. #NovaState.friends .. ")"
                     UI:UpdateFriendList()
                 end
             end)
             
-            -- Ховер эффект
             local hover = TweenService:Create(btn, TweenInfo.new(0.12), {
                 BackgroundTransparency = isFriend and 0.5 or 0.1
             })
@@ -432,15 +703,12 @@ function UI:Build()
             end)
         end
         
-        -- Обновляем размер скролла
         task.wait()
         playerList.CanvasSize = UDim2.new(0, 0, 0, playerLayout.AbsoluteContentSize.Y + 10)
     end
     
-    -- Закрытие окна друзей
     friendClose.MouseButton1Click:Connect(function()
         friendWindow.Visible = false
-        State.showFriendSelector = false
     end)
     
     return {
@@ -460,34 +728,93 @@ function UI:Build()
         crosshair = crosshair,
         fov = fov,
         friendWindow = friendWindow,
-        playerList = playerList,
-        friendClose = friendClose,
+        UpdateFriendList = UI.UpdateFriendList,
+        Log = function(self, msg)
+            if self.consoleText then
+                self.consoleText.Text = "> " .. msg
+            end
+        end,
     }
 end
 
-UI = UI:Build()
+local NovaUI = UI:Build()
 
--- Функция для вывода в консоль
-function UI:Log(msg)
-    if self.consoleText then
-        self.consoleText.Text = "> " .. msg
-    end
-end
+-- ============================================
+-- ЗАПУСК СОФТА (после загрузки)
+-- ============================================
 
--- Показ окна выбора друзей
-local function ShowFriendSelector()
-    State.showFriendSelector = not State.showFriendSelector
-    UI.friendWindow.Visible = State.showFriendSelector
+function StartNova()
+    Boot.gui.Enabled = false
+    Boot.gui:Destroy()
     
-    if State.showFriendSelector then
-        UI:UpdateFriendList()
-        UI:Log("friends manager opened")
-    else
-        UI:Log("friends manager closed")
-    end
+    NovaUI.gui.Enabled = true
+    
+    -- Анимация появления
+    NovaUI.main.Size = UDim2.new(0, 200, 0, 200)
+    NovaUI.main.Position = UDim2.new(0.5, -100, 0.5, -100)
+    NovaUI.main.BackgroundTransparency = 1
+    
+    local tween1 = TweenService:Create(NovaUI.main, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 420, 0, 380),
+        Position = UDim2.new(0.5, -210, 0.5, -190),
+        BackgroundTransparency = 0.03,
+    })
+    tween1:Play()
+    
+    NovaUI:UpdateFriendList()
+    NovaUI.btnFriend.Text = "> friends (" .. #NovaState.friends .. ")"
+    NovaUI:Log("ready! press 1 or click start")
 end
 
--- Аим логика
+-- ============================================
+-- ЗАГРУЗКА (Boot Sequence)
+-- ============================================
+
+local bootMessages = {
+    {msg = "инициализация системы...", progress = 0.05},
+    {msg = "подключение к ядру...", progress = 0.15},
+    {msg = "загрузка модулей...", progress = 0.30},
+    {msg = "настройка окружения...", progress = 0.45},
+    {msg = "проверка конфигурации...", progress = 0.60},
+    {msg = "активация интерфейса...", progress = 0.75},
+    {msg = "готов к запуску!", progress = 0.90},
+}
+
+task.spawn(function()
+    Boot.ConsoleLog("> termux v2.55")
+    Boot.ConsoleLog("> nova system initializing...", Theme.textMuted)
+    
+    for i, step in ipairs(bootMessages) do
+        Boot.UpdateProgress(step.progress, step.msg)
+        Boot.ConsoleLog("> " .. step.msg, Theme.textMuted)
+        task.wait(0.3 + math.random() * 0.2)
+    end
+    
+    Boot.UpdateProgress(0.95, "ожидание ввода...")
+    Boot.ConsoleLog("")
+    Boot.ConsoleLog("> система готова", Theme.green)
+    Boot.ConsoleLog("> запустить софт? (y/n)", Theme.amber)
+    Boot.phase = 1
+    
+    -- Фокус на поле ввода для телефона
+    task.wait(0.5)
+    Boot.inputField:CaptureFocus()
+    
+    -- Ожидание ввода y/n
+    while Boot.phase == 1 and not BootState.ready do
+        task.wait(0.1)
+    end
+    
+    if BootState.ready then
+        Boot.UpdateProgress(1.0, "запуск...")
+        task.wait(0.5)
+        StartNova()
+    end
+end)
+
+-- ============================================
+-- АИМ ЛОГИКА (работает после запуска)
+-- ============================================
 
 local raycastParams = RaycastParams.new()
 raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -540,7 +867,6 @@ local function IsVisible(plr)
 end
 
 -- X-Ray логика
-
 local XRayParts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
 
 local function CreateBox(plr)
@@ -654,7 +980,6 @@ local function UpdateBox(plr, hue)
 end
 
 -- Поиск цели
-
 local function FindTarget()
     if not Camera then return nil end
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -685,20 +1010,18 @@ local function FindTarget()
     return best
 end
 
--- Основной цикл
-
+-- Основной цикл обновления
 local function Update(dt)
-    if not Camera then return end
+    if not Camera or not NovaUI.gui.Enabled then return end
     
     -- X-Ray обновление
     if XRay.enabled then
-        State.hue = (State.hue + dt * 0.15) % 1
-        State.xrayTimer = State.xrayTimer + dt
+        NovaState.hue = (NovaState.hue + dt * 0.15) % 1
+        NovaState.xrayTimer = NovaState.xrayTimer + dt
         
-        if State.xrayTimer >= 0.03 then
-            State.xrayTimer = 0
+        if NovaState.xrayTimer >= 0.03 then
+            NovaState.xrayTimer = 0
             
-            -- Чистим мёртвых
             for plr in pairs(XRay.boxes) do
                 if not plr or not plr.Parent or not IsAlive(plr) or IsFriend(plr) then
                     if XRay.boxes[plr] and XRay.boxes[plr].box then
@@ -708,110 +1031,111 @@ local function Update(dt)
                 end
             end
             
-            -- Создаём новые
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= Player and IsAlive(plr) and not IsFriend(plr) then
                     CreateBox(plr)
-                    UpdateBox(plr, State.hue)
+                    UpdateBox(plr, NovaState.hue)
                 end
             end
         end
     end
     
-    if not State.enabled then return end
+    if not NovaState.enabled then return end
     
     -- Аим логика
-    State.searchTimer = State.searchTimer + dt
+    NovaState.searchTimer = NovaState.searchTimer + dt
     
-    if State.target and IsAlive(State.target) and not IsFriend(State.target) then
-        local part = GetPart(State.target)
-        if part and IsVisible(State.target) then
-            State.lostTimer = 0
+    if NovaState.target and IsAlive(NovaState.target) and not IsFriend(NovaState.target) then
+        local part = GetPart(NovaState.target)
+        if part and IsVisible(NovaState.target) then
+            NovaState.lostTimer = 0
             local pos = part.Position
-            State.targetCF = CFrame.lookAt(Camera.CFrame.Position, pos)
+            NovaState.targetCF = CFrame.lookAt(Camera.CFrame.Position, pos)
             
-            if State.targetCF then
-                State.smoothCF = State.smoothCF and State.smoothCF:Lerp(State.targetCF, Config.Smoothness) or State.targetCF
-                Camera.CFrame = State.smoothCF
+            if NovaState.targetCF then
+                NovaState.smoothCF = NovaState.smoothCF and NovaState.smoothCF:Lerp(NovaState.targetCF, Config.Smoothness) or NovaState.targetCF
+                Camera.CFrame = NovaState.smoothCF
             end
             
-            UI.status.Text = "> locked: " .. State.target.Name
-            UI.status.TextColor3 = Theme.green
-            UI.targetLabel.Text = "> target: " .. State.target.Name
-            UI.targetLabel.TextColor3 = Theme.green
+            NovaUI.status.Text = "> locked: " .. NovaState.target.Name
+            NovaUI.status.TextColor3 = Theme.green
+            NovaUI.targetLabel.Text = "> target: " .. NovaState.target.Name
+            NovaUI.targetLabel.TextColor3 = Theme.green
             return
         end
         
-        State.lostTimer = State.lostTimer + dt
-        if State.lostTimer > 0.15 then
-            State.target = nil
-            State.targetCF = nil
-            State.smoothCF = nil
+        NovaState.lostTimer = NovaState.lostTimer + dt
+        if NovaState.lostTimer > 0.15 then
+            NovaState.target = nil
+            NovaState.targetCF = nil
+            NovaState.smoothCF = nil
         end
     end
     
-    if State.searchTimer < 0.05 then return end
-    State.searchTimer = 0
+    if NovaState.searchTimer < 0.05 then return end
+    NovaState.searchTimer = 0
     
     local newTarget = FindTarget()
     if newTarget then
-        State.target = newTarget
-        State.lostTimer = 0
-        State.targetCF = nil
-        State.smoothCF = nil
+        NovaState.target = newTarget
+        NovaState.lostTimer = 0
+        NovaState.targetCF = nil
+        NovaState.smoothCF = nil
         
-        UI.status.Text = "> locked: " .. newTarget.Name
-        UI.status.TextColor3 = Theme.green
-        UI.targetLabel.Text = "> target: " .. newTarget.Name
-        UI.targetLabel.TextColor3 = Theme.green
-        UI:Log("target: " .. newTarget.Name)
+        NovaUI.status.Text = "> locked: " .. newTarget.Name
+        NovaUI.status.TextColor3 = Theme.green
+        NovaUI.targetLabel.Text = "> target: " .. newTarget.Name
+        NovaUI.targetLabel.TextColor3 = Theme.green
+        NovaUI:Log("target: " .. newTarget.Name)
     else
-        if State.target then
-            State.target = nil
-            State.targetCF = nil
-            State.smoothCF = nil
+        if NovaState.target then
+            NovaState.target = nil
+            NovaState.targetCF = nil
+            NovaState.smoothCF = nil
         end
         
-        UI.status.Text = "> searching..."
-        UI.status.TextColor3 = Theme.amber
-        UI.targetLabel.Text = "> target: none"
-        UI.targetLabel.TextColor3 = Theme.textMuted
+        NovaUI.status.Text = "> searching..."
+        NovaUI.status.TextColor3 = Theme.amber
+        NovaUI.targetLabel.Text = "> target: none"
+        NovaUI.targetLabel.TextColor3 = Theme.textMuted
     end
 end
 
--- Обработчики событий
+-- ============================================
+-- ОБРАБОТЧИКИ СОБЫТИЙ
+-- ============================================
 
 local function ToggleAim()
-    State.enabled = not State.enabled
+    NovaState.enabled = not NovaState.enabled
     
-    if State.enabled then
-        UI.btnToggle.Text = "> stop"
-        UI.btnToggle.TextColor3 = Theme.red
-        UI.status.Text = "> active"
-        UI.status.TextColor3 = Theme.green
-        UI.crosshair.Visible = true
-        UI.fov.Visible = true
-        UI:Log("aim started")
+    if NovaState.enabled then
+        NovaUI.btnToggle.Text = "> stop"
+        NovaUI.btnToggle.TextColor3 = Theme.red
+        NovaUI.status.Text = "> active"
+        NovaUI.status.TextColor3 = Theme.green
+        NovaUI.crosshair.Visible = true
+        NovaUI.fov.Visible = true
+        NovaUI:Log("aim started")
         
         if not XRay.container then
             XRay.container = Instance.new("Folder")
             XRay.container.Name = "XRay"
-            XRay.container.Parent = UI.gui
+            XRay.container.Parent = NovaUI.gui
         end
     else
-        UI.btnToggle.Text = "> start"
-        UI.btnToggle.TextColor3 = Theme.green
-        UI.status.Text = "> offline"
-        UI.status.TextColor3 = Theme.textMuted
-        UI.targetLabel.Text = "> target: none"
-        UI.targetLabel.TextColor3 = Theme.textMuted
-        UI.crosshair.Visible = false
-        UI.fov.Visible = false
-        UI:Log("aim stopped")
+        NovaUI.btnToggle.Text = "> start"
+        NovaUI.btnToggle.TextColor3 = Theme.green
+        NovaUI.status.Text = "> offline"
+        NovaUI.status.TextColor3 = Theme.textMuted
+        NovaUI.targetLabel.Text = "> target: none"
+        NovaUI.targetLabel.TextColor3 = Theme.textMuted
+        NovaUI.crosshair.Visible = false
+        NovaUI.fov.Visible = false
+        NovaUI:Log("aim stopped")
         
-        State.target = nil
-        State.targetCF = nil
-        State.smoothCF = nil
+        NovaState.target = nil
+        NovaState.targetCF = nil
+        NovaState.smoothCF = nil
         
         for plr in pairs(XRay.boxes) do
             if XRay.boxes[plr] and XRay.boxes[plr].box then
@@ -830,20 +1154,20 @@ local function SwitchAim()
     if Config.AimPart == "Head" then
         Config.AimPart = "HumanoidRootPart"
         Config.BackupPart = "Torso"
-        UI.btnAim.Text = "> switch: body"
-        UI:Log("aim: body")
+        NovaUI.btnAim.Text = "> switch: body"
+        NovaUI:Log("aim: body")
     else
         Config.AimPart = "Head"
         Config.BackupPart = "UpperTorso"
-        UI.btnAim.Text = "> switch: head"
-        UI:Log("aim: head")
+        NovaUI.btnAim.Text = "> switch: head"
+        NovaUI:Log("aim: head")
     end
 end
 
 local function ToggleXRay()
     XRay.enabled = not XRay.enabled
-    UI.btnXRay.Text = XRay.enabled and "> x-ray: on" or "> x-ray: off"
-    UI:Log("x-ray: " .. (XRay.enabled and "on" or "off"))
+    NovaUI.btnXRay.Text = XRay.enabled and "> x-ray: on" or "> x-ray: off"
+    NovaUI:Log("x-ray: " .. (XRay.enabled and "on" or "off"))
     
     if not XRay.enabled then
         for plr in pairs(XRay.boxes) do
@@ -859,33 +1183,49 @@ local function ToggleXRay()
     elseif not XRay.container then
         XRay.container = Instance.new("Folder")
         XRay.container.Name = "XRay"
-        XRay.container.Parent = UI.gui
+        XRay.container.Parent = NovaUI.gui
     end
 end
 
--- Подключение событий
+local function ShowFriendSelector()
+    NovaUI.friendWindow.Visible = not NovaUI.friendWindow.Visible
+    if NovaUI.friendWindow.Visible then
+        NovaUI:UpdateFriendList()
+        NovaUI:Log("friends manager opened")
+    else
+        NovaUI:Log("friends manager closed")
+    end
+end
 
-UI.btnToggle.MouseButton1Click:Connect(ToggleAim)
-UI.btnAim.MouseButton1Click:Connect(SwitchAim)
-UI.btnXRay.MouseButton1Click:Connect(ToggleXRay)
-UI.btnFriend.MouseButton1Click:Connect(ShowFriendSelector)
+-- Подключение кнопок
+NovaUI.btnToggle.MouseButton1Click:Connect(ToggleAim)
+NovaUI.btnAim.MouseButton1Click:Connect(SwitchAim)
+NovaUI.btnXRay.MouseButton1Click:Connect(ToggleXRay)
+NovaUI.btnFriend.MouseButton1Click:Connect(ShowFriendSelector)
 
-UI.closeBtn.MouseButton1Click:Connect(function()
-    UI.gui:Destroy()
+NovaUI.closeBtn.MouseButton1Click:Connect(function()
+    NovaUI.gui:Destroy()
+    if XRay.container then XRay.container:Destroy() end
 end)
 
-UI.minBtn.MouseButton1Click:Connect(function()
-    local state = UI.main.Visible
-    UI.main.Visible = not state
-    UI:Log(state and "hidden" or "shown")
+NovaUI.minBtn.MouseButton1Click:Connect(function()
+    local state = NovaUI.main.Visible
+    NovaUI.main.Visible = not state
+    NovaUI:Log(state and "hidden" or "shown")
 end)
 
-UI.maxBtn.MouseButton1Click:Connect(function()
-    UI:Log("maximize not implemented")
+NovaUI.maxBtn.MouseButton1Click:Connect(function()
+    NovaUI:Log("maximize not implemented")
 end)
 
--- Клавиши
+NovaUI.btnExit.MouseButton1Click:Connect(function()
+    NovaUI.gui:Destroy()
+    if XRay.container then XRay.container:Destroy() end
+end)
+
+-- Горячие клавиши
 UserInputService.InputBegan:Connect(function(input)
+    if not NovaUI.gui.Enabled then return end
     if input.KeyCode == Enum.KeyCode.One then
         ToggleAim()
     elseif input.KeyCode == Enum.KeyCode.Two then
@@ -897,27 +1237,9 @@ UserInputService.InputBegan:Connect(function(input)
     end
 end)
 
--- Хуйня для очистки
-local function Cleanup()
-    UI.gui:Destroy()
-    if XRay.container then XRay.container:Destroy() end
-end
-
-UI.btnExit.MouseButton1Click:Connect(Cleanup)
-
--- Обновляем список друзей при загрузке
-UI:UpdateFriendList()
-UI.btnFriend.Text = "> friends (" .. #State.friends .. ")"
-
--- Уведомление
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Nova v2.54",
-    Text = "1 - start/stop | 2 - switch aim | 3 - x-ray | 4 - friends",
-    Duration = 4
-})
-
--- Основной циклRunService.RenderStepped:Connect(function(dt)
+-- Основной цикл
+RunService.RenderStepped:Connect(function(dt)
     pcall(Update, dt)
 end)
 
-UI:Log("ready! press 4 or click friends button")
+print("Nova v2.55 загружена, братан!")
