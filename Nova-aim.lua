@@ -31,13 +31,14 @@ Gui.Parent = PlayerGui
 --==================================================
 
 local Colors = {
-    Black = Color3.fromRGB(7,7,7),
+    Black = Color3.fromRGB(5,5,5),
     Panel = Color3.fromRGB(15,15,15),
-    Dark = Color3.fromRGB(20,20,20),
+    Dark = Color3.fromRGB(22,22,22),
     White = Color3.fromRGB(240,240,240),
     Gray = Color3.fromRGB(130,130,130),
     Green = Color3.fromRGB(120,255,150),
     Red = Color3.fromRGB(255,70,70),
+    GreenDim = Color3.fromRGB(30,80,40),
 }
 
 --==================================================
@@ -56,6 +57,7 @@ local State = {
     searchTimer = 0,
     xrayTimer = 0,
     currentTab = "software",
+    isFullscreen = false,
 }
 
 local Config = {
@@ -94,17 +96,91 @@ Loader.BackgroundColor3 = Colors.Black
 Loader.ZIndex = 100
 Loader.Parent = Gui
 
+local GlowOverlay = Instance.new("Frame")
+GlowOverlay.Size = UDim2.fromScale(1,1)
+GlowOverlay.BackgroundTransparency = 1
+GlowOverlay.BackgroundColor3 = Colors.Green
+GlowOverlay.ZIndex = 101
+GlowOverlay.Parent = Loader
+
 local Terminal = Instance.new("TextLabel")
 Terminal.Size = UDim2.new(0.8,0,0.4,0)
-Terminal.Position = UDim2.new(0.1,0,0.2,0)
+Terminal.Position = UDim2.new(0.1,0,0.15,0)
 Terminal.BackgroundTransparency = 1
 Terminal.TextColor3 = Colors.Green
 Terminal.Font = Enum.Font.Code
 Terminal.TextSize = 20
 Terminal.TextXAlignment = Enum.TextXAlignment.Left
 Terminal.TextYAlignment = Enum.TextYAlignment.Top
-Terminal.ZIndex = 101
+Terminal.ZIndex = 110
 Terminal.Parent = Loader
+
+--==================================================
+-- PARTICLES (RenderStepped)
+--==================================================
+
+local Particles = {}
+local ParticleContainer = Instance.new("Frame")
+ParticleContainer.Size = UDim2.fromScale(1,1)
+ParticleContainer.BackgroundTransparency = 1
+ParticleContainer.ZIndex = 105
+ParticleContainer.Parent = Loader
+
+for i = 1,40 do
+    local p = Instance.new("Frame")
+    local size = math.random(2,4)
+    p.Size = UDim2.fromOffset(size,size)
+    p.Position = UDim2.fromScale(math.random(), math.random())
+    p.BackgroundColor3 = Colors.Green
+    p.BackgroundTransparency = 0.3 + math.random() * 0.3
+    p.ZIndex = 106
+    Corner(p,10)
+    p.Parent = ParticleContainer
+    
+    table.insert(Particles, {
+        frame = p,
+        speedX = (math.random() - 0.5) * 0.005,
+        speedY = (math.random() - 0.5) * 0.005,
+        phase = math.random() * 2 * math.pi,
+        startX = p.Position.X.Scale,
+        startY = p.Position.Y.Scale,
+        transSpeed = 0.002 + math.random() * 0.003,
+    })
+end
+
+local function UpdateParticles(dt)
+    for _, data in ipairs(Particles) do
+        if data.frame and data.frame.Parent then
+            local time = os.clock()
+            local offsetX = math.sin(time * 0.3 + data.phase) * data.speedX * 10
+            local offsetY = math.cos(time * 0.5 + data.phase) * data.speedY * 10
+            data.frame.Position = UDim2.new(
+                data.startX + offsetX,
+                0,
+                data.startY + offsetY,
+                0
+            )
+            data.frame.BackgroundTransparency = 0.3 + math.sin(time * data.transSpeed + data.phase) * 0.2 + 0.2
+        end
+    end
+end
+
+--==================================================
+-- GLOW PULSE
+--==================================================
+
+task.spawn(function()
+    while Loader and Loader.Parent do
+        Tween(GlowOverlay, 2, {BackgroundTransparency = 0.92})
+        task.wait(2)
+        Tween(GlowOverlay, 2, {BackgroundTransparency = 1})
+        task.wait(2)
+    end
+end)
+
+--==================================================
+-- TERMINAL OUTPUT
+--==================================================
 
 local function TypeLine(text)
     Terminal.Text = Terminal.Text .. "\n"
@@ -133,29 +209,95 @@ task.spawn(function()
 end)
 
 --==================================================
--- PARTICLES
+-- READY INPUT (FIXED)
 --==================================================
 
-for i = 1,45 do
-    local p = Instance.new("Frame")
-    p.Size = UDim2.fromOffset(3,3)
-    p.Position = UDim2.fromScale(math.random(), math.random())
-    p.BackgroundColor3 = Colors.Green
-    p.BackgroundTransparency = 0.35
-    p.ZIndex = 100
-    Corner(p,50)
-    p.Parent = Loader
-    
-    task.spawn(function()
-        while p.Parent do
-            Tween(p, math.random(5,8), {
-                Position = UDim2.fromScale(math.random(), math.random()),
-                BackgroundTransparency = 0.8
-            })
-            task.wait(3)
-            p.BackgroundTransparency = 0.35
-        end
-    end)
+local ReadyFrame = Instance.new("Frame")
+ReadyFrame.Size = UDim2.new(0.45,0,0,45)
+ReadyFrame.Position = UDim2.new(0.1,0,0.68,0)
+ReadyFrame.BackgroundTransparency = 1
+ReadyFrame.ZIndex = 150
+ReadyFrame.Visible = false
+ReadyFrame.Parent = Loader
+
+local Prefix = Instance.new("TextLabel")
+Prefix.Size = UDim2.new(0,35,1,0)
+Prefix.BackgroundTransparency = 1
+Prefix.Text = "~$"
+Prefix.TextColor3 = Colors.Green
+Prefix.Font = Enum.Font.Code
+Prefix.TextSize = 22
+Prefix.TextXAlignment = Enum.TextXAlignment.Left
+Prefix.ZIndex = 151
+Prefix.Parent = ReadyFrame
+
+local InputLine = Instance.new("TextBox")
+InputLine.Size = UDim2.new(1,-40,1,0)
+InputLine.Position = UDim2.new(0,40,0,0)
+InputLine.BackgroundTransparency = 1
+InputLine.Text = ""
+InputLine.PlaceholderText = " type y or n..."
+InputLine.PlaceholderColor3 = Colors.Gray
+InputLine.TextColor3 = Colors.Green
+InputLine.Font = Enum.Font.Code
+InputLine.TextSize = 22
+InputLine.ClearTextOnFocus = false
+InputLine.ZIndex = 151
+InputLine.Parent = ReadyFrame
+
+-- Отправка на Enter (ПК)
+local function CheckAndStart()
+    local answer = string.lower(InputLine.Text)
+    if answer == "y" then
+        StartMenu()
+    elseif answer == "n" then
+        InputLine.Text = ""
+        InputLine.PlaceholderText = "cancelled"
+    end
+end
+
+InputLine.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        CheckAndStart()
+    end
+end)
+
+-- Для мобильных: отслеживаем символ перевода строки
+InputLine:GetPropertyChangedSignal("Text"):Connect(function()
+    local text = InputLine.Text
+    if string.find(text, "\n") then
+        InputLine.Text = string.gsub(text, "\n", "")
+        CheckAndStart()
+    end
+end)
+
+-- Показываем строку ввода с анимацией
+task.wait(1)
+ReadyFrame.Visible = true
+ReadyFrame.Position = UDim2.new(0.1,0,0.72,0)
+Tween(ReadyFrame, 0.6, {Position = UDim2.new(0.1,0,0.62,0)})
+task.wait(0.3)
+InputLine:CaptureFocus()
+
+-- Для мобильных: клик по экрану вызывает клавиатуру
+Loader.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch and ReadyFrame.Visible then
+        InputLine:CaptureFocus()
+    end
+end)
+
+--==================================================
+-- START MENU FUNCTION
+--==================================================
+
+local function StartMenu()
+    Tween(Loader, 0.7, {BackgroundTransparency = 1})
+    task.wait(0.7)
+    Loader.Visible = false
+    Main.Visible = true
+    Main.Size = UDim2.new(0,300,0,350)
+    Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
+    SwitchTab("software")
 end
 
 --==================================================
@@ -188,24 +330,35 @@ Title.TextSize = 28
 Title.ZIndex = 12
 Title.Parent = Top
 
-local function TopButton(txt,x)
+--==================================================
+-- TOP BUTTONS
+--==================================================
+
+local function TopButton(text,x,icon)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.fromOffset(45,35)
+    b.Size = UDim2.fromOffset(40,35)
     b.Position = UDim2.new(1,x,0.5,-17)
-    b.Text = txt
+    b.Text = text
     b.BackgroundColor3 = Colors.Black
     b.TextColor3 = Colors.White
     b.Font = Enum.Font.Code
-    b.TextSize = 20
+    b.TextSize = 18
     b.ZIndex = 12
-    Corner(b,15)
+    Corner(b,12)
     b.Parent = Top
+    
+    b.MouseEnter:Connect(function()
+        Tween(b, 0.15, {BackgroundColor3 = Colors.GreenDim})
+    end)
+    b.MouseLeave:Connect(function()
+        Tween(b, 0.15, {BackgroundColor3 = Colors.Black})
+    end)
     return b
 end
 
-local Min = TopButton("—", -145)
-local Full = TopButton("□", -95)
-local Close = TopButton("×", -45)
+local MinBtn = TopButton("─", -150)
+local FullBtn = TopButton("□", -100)
+local CloseBtn = TopButton("✕", -50)
 
 --==================================================
 -- MINI LOGO
@@ -244,53 +397,65 @@ task.spawn(function()
 end)
 
 --==================================================
--- BUTTON CREATOR
+-- BUTTONS WITH UIListLayout
 --==================================================
 
-local function CreateButton(text, y)
+local ButtonContainer = Instance.new("Frame")
+ButtonContainer.Size = UDim2.new(0.85,0,0,350)
+ButtonContainer.Position = UDim2.new(0.075,0,0,130)
+ButtonContainer.BackgroundTransparency = 1
+ButtonContainer.ZIndex = 12
+ButtonContainer.Parent = Main
+
+local ButtonLayout = Instance.new("UIListLayout")
+ButtonLayout.Padding = UDim.new(0,12)
+ButtonLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ButtonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+ButtonLayout.Parent = ButtonContainer
+
+local function CreateButton(text)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0.75,0,0,55)
-    b.Position = UDim2.new(0.125,0,0,y)
+    b.Size = UDim2.new(1,0,0,50)
     b.BackgroundColor3 = Colors.Dark
     b.Text = text
     b.TextColor3 = Colors.White
     b.Font = Enum.Font.Code
-    b.TextSize = 18
-    b.ZIndex = 12
+    b.TextSize = 17
+    b.ZIndex = 13
     Corner(b,25)
-    b.Parent = Main
+    b.Parent = ButtonContainer
     
     b.MouseEnter:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = Color3.fromRGB(35,35,35), Size = UDim2.new(0.77,0,0,57)})
+        Tween(b, 0.15, {BackgroundColor3 = Color3.fromRGB(35,35,35), Size = UDim2.new(1.02,0,0,52)})
     end)
     b.MouseLeave:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = Colors.Dark, Size = UDim2.new(0.75,0,0,55)})
+        Tween(b, 0.15, {BackgroundColor3 = Colors.Dark, Size = UDim2.new(1,0,0,50)})
     end)
     b.MouseButton1Down:Connect(function()
-        Tween(b, 0.08, {Size = UDim2.new(0.73,0,0,53)})
+        Tween(b, 0.08, {Size = UDim2.new(0.98,0,0,48)})
     end)
     b.MouseButton1Up:Connect(function()
-        Tween(b, 0.08, {Size = UDim2.new(0.75,0,0,55)})
+        Tween(b, 0.08, {Size = UDim2.new(1,0,0,50)})
     end)
     
     return b
 end
 
-local Software = CreateButton("SOFTWARE", 90)
-local Settings = CreateButton("SETTINGS", 155)
-local Friends = CreateButton("FRIENDS", 220)
-
-local EnableBtn = CreateButton("ENABLE AIM", 285)
-local XrayBtn = CreateButton("XRAY OFF", 350)
-local PartBtn = CreateButton("HEAD", 415)
+local SoftwareBtn = CreateButton("SOFTWARE")
+local SettingsBtn = CreateButton("SETTINGS")
+local FriendsBtn = CreateButton("FRIENDS")
+local EnableBtn = CreateButton("ENABLE AIM")
+local XrayBtn = CreateButton("XRAY OFF")
+local PartBtn = CreateButton("HEAD")
+local MinimizeBtn = CreateButton("MINIMIZE")
 
 --==================================================
--- STATUS
+-- STATUS (отдельно)
 --==================================================
 
 local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1,-40,0,120)
-Status.Position = UDim2.new(0,20,0,310)
+Status.Size = UDim2.new(0.5,0,0,120)
+Status.Position = UDim2.new(0.48,0,0.8,0)
 Status.BackgroundTransparency = 1
 Status.Text = [[
 STATUS
@@ -302,7 +467,7 @@ LOCK: Searching
 HIT: Head]]
 Status.TextColor3 = Colors.White
 Status.Font = Enum.Font.Code
-Status.TextSize = 15
+Status.TextSize = 14
 Status.TextXAlignment = Enum.TextXAlignment.Left
 Status.ZIndex = 12
 Status.Parent = Main
@@ -328,8 +493,8 @@ end
 --==================================================
 
 local SettingsFrame = Instance.new("Frame")
-SettingsFrame.Size = UDim2.new(1,-40,0,200)
-SettingsFrame.Position = UDim2.new(0,20,0,130)
+SettingsFrame.Size = UDim2.new(0.4,0,0.5,0)
+SettingsFrame.Position = UDim2.new(0.05,0,0.35,0)
 SettingsFrame.BackgroundTransparency = 1
 SettingsFrame.Visible = false
 SettingsFrame.ZIndex = 12
@@ -357,15 +522,15 @@ SettingsText.Parent = SettingsFrame
 --==================================================
 
 local FriendsFrame = Instance.new("Frame")
-FriendsFrame.Size = UDim2.new(1,-40,0,200)
-FriendsFrame.Position = UDim2.new(0,20,0,130)
+FriendsFrame.Size = UDim2.new(0.5,0,0.5,0)
+FriendsFrame.Position = UDim2.new(0.05,0,0.35,0)
 FriendsFrame.BackgroundTransparency = 1
 FriendsFrame.Visible = false
 FriendsFrame.ZIndex = 12
 FriendsFrame.Parent = Main
 
 local FriendList = Instance.new("ScrollingFrame")
-FriendList.Size = UDim2.new(0.6,0,1,0)
+FriendList.Size = UDim2.new(1,0,1,0)
 FriendList.BackgroundTransparency = 1
 FriendList.BorderSizePixel = 0
 FriendList.CanvasSize = UDim2.new(0,0,0,0)
@@ -378,8 +543,8 @@ FriendLayout.SortOrder = Enum.SortOrder.LayoutOrder
 FriendLayout.Parent = FriendList
 
 local FriendInfo = Instance.new("Frame")
-FriendInfo.Size = UDim2.new(0.38,0,1,0)
-FriendInfo.Position = UDim2.new(0.62,0,0,0)
+FriendInfo.Size = UDim2.new(0.45,0,1,0)
+FriendInfo.Position = UDim2.new(0.55,0,0,0)
 FriendInfo.BackgroundColor3 = Colors.Dark
 FriendInfo.BackgroundTransparency = 1
 FriendInfo.Visible = false
@@ -565,9 +730,9 @@ local function SwitchTab(tab)
     State.currentTab = tab
 end
 
-Software.MouseButton1Click:Connect(function() SwitchTab("software") end)
-Settings.MouseButton1Click:Connect(function() SwitchTab("settings") end)
-Friends.MouseButton1Click:Connect(function() SwitchTab("friends") end)
+SoftwareBtn.MouseButton1Click:Connect(function() SwitchTab("software") end)
+SettingsBtn.MouseButton1Click:Connect(function() SwitchTab("settings") end)
+FriendsBtn.MouseButton1Click:Connect(function() SwitchTab("friends") end)
 
 --==================================================
 -- BUTTON FUNCTIONS
@@ -612,7 +777,7 @@ PartBtn.MouseButton1Click:Connect(SwitchAimPart)
 -- WINDOW CONTROL
 --==================================================
 
-Min.MouseButton1Click:Connect(function()
+MinBtn.MouseButton1Click:Connect(function()
     Main.Visible = false
     Mini.Visible = true
 end)
@@ -622,13 +787,30 @@ Mini.MouseButton1Click:Connect(function()
     Main.Visible = true
 end)
 
-Close.MouseButton1Click:Connect(function()
+CloseBtn.MouseButton1Click:Connect(function()
     Gui:Destroy()
 end)
 
-Full.MouseButton1Click:Connect(function()
-    Main.Size = UDim2.fromScale(0.9, 0.85)
-    Main.Position = UDim2.fromScale(0.05, 0.075)
+FullBtn.MouseButton1Click:Connect(function()
+    State.isFullscreen = not State.isFullscreen
+    if State.isFullscreen then
+        FullBtn.Text = "◻"
+        Tween(Main, 0.4, {
+            Size = UDim2.fromScale(0.92, 0.88),
+            Position = UDim2.fromScale(0.04, 0.06)
+        })
+    else
+        FullBtn.Text = "□"
+        Tween(Main, 0.4, {
+            Size = UDim2.new(0,450,0,550),
+            Position = UDim2.new(0.5,-225,0.5,-275)
+        })
+    end
+end)
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    Mini.Visible = true
 end)
 
 -- Drag Mini
@@ -659,99 +841,6 @@ end)
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragData.dragging = false
-    end
-end)
-
---==================================================
--- LOADER INPUT (FIXED FOR PC & MOBILE)
---==================================================
-
--- Создаём кнопку для отправки
-local SendBtn = Instance.new("TextButton")
-SendBtn.Size = UDim2.new(0.1,0,0,40)
-SendBtn.Position = UDim2.new(0.52,0,0.65,0)
-SendBtn.BackgroundColor3 = Colors.Dark
-SendBtn.Text = "→"
-SendBtn.TextColor3 = Colors.White
-SendBtn.Font = Enum.Font.Code
-SendBtn.TextSize = 24
-SendBtn.ZIndex = 101
-SendBtn.Visible = false
-SendBtn.Parent = Loader
-Corner(SendBtn, 10)
-
--- Показываем поле ввода и кнопку после загрузки
-task.wait(6)
-
-local InputLine = Instance.new("TextBox")
-InputLine.Size = UDim2.new(0.35,0,0,40)
-InputLine.Position = UDim2.new(0.1,0,0.65,0)
-InputLine.BackgroundColor3 = Colors.Dark
-InputLine.TextColor3 = Colors.White
-InputLine.PlaceholderText = ">"
-InputLine.PlaceholderColor3 = Colors.Gray
-InputLine.Font = Enum.Font.Code
-InputLine.TextSize = 20
-InputLine.ClearTextOnFocus = false
-InputLine.ZIndex = 101
-InputLine.Parent = Loader
-Corner(InputLine, 10)
-
-InputLine.Visible = true
-SendBtn.Visible = true
-InputLine:CaptureFocus()
-
--- Функция запуска меню
-local function StartMenu()
-    Tween(Loader, 0.5, {BackgroundTransparency = 1})
-    task.wait(0.6)
-    Loader.Visible = false
-    Main.Visible = true
-    Main.Size = UDim2.new(0,300,0,350)
-    Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
-    SwitchTab("software")
-end
-
--- Обработка ввода с клавиатуры (ПК)
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if not InputLine.Visible then return end
-    
-    if input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.KeypadEnter then
-        local text = InputLine.Text
-        if text == "" then return end
-        
-        if string.lower(text) == "y" then
-            StartMenu()
-        end
-    end
-end)
-
--- Обработка фокуса для мобильных
-InputLine.FocusLost:Connect(function(enterPressed)
-    if not enterPressed then return end
-    if InputLine.Text == "" then return end
-    
-    local text = InputLine.Text
-    if string.lower(text) == "y" then
-        StartMenu()
-    end
-end)
-
--- Кнопка отправки (для мобильных и ПК)
-SendBtn.MouseButton1Click:Connect(function()
-    local text = InputLine.Text
-    if text == "" then return end
-    
-    if string.lower(text) == "y" then
-        StartMenu()
-    end
-end)
-
--- Для мобильных: клик по экрану вызывает клавиатуру
-Loader.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch and InputLine.Visible then
-        InputLine:CaptureFocus()
     end
 end)
 
@@ -912,17 +1001,4 @@ UserInputService.InputBegan:Connect(function(input)
     elseif input.KeyCode == Enum.KeyCode.Two then
         SwitchAimPart()
     elseif input.KeyCode == Enum.KeyCode.Three then
-        ToggleXRay()
-    end
-end)
-
---==================================================
--- RUN LOOP
---==================================================
-
-RunService.RenderStepped:Connect(function(dt)
-    pcall(UpdateAim, dt)
-end)
-
-UpdateStatus()
-print("NOVA UI v4.0 loaded")
+        ToggleXRay
