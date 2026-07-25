@@ -253,7 +253,7 @@ InputLine.ZIndex = 151
 InputLine.Parent = ReadyFrame
 
 --==================================================
--- MAIN WINDOW (создаём до функций)
+-- MAIN WINDOW
 --==================================================
 
 local Main = Instance.new("Frame")
@@ -1024,3 +1024,52 @@ local function UpdateAim(dt)
     
     local newTarget = FindBestTarget()
     if newTarget then
+        State.target = newTarget
+        State.lostTimer = 0
+        State.targetCF = nil
+        State.smoothCF = nil
+        UpdateStatus()
+    else
+        if State.target then
+            State.target = nil
+            State.targetCF = nil
+            State.smoothCF = nil
+            UpdateStatus()
+        end
+    end
+end
+
+--==================================================
+-- HOTKEYS
+--==================================================
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.One then
+        ToggleAim()
+    elseif input.KeyCode == Enum.KeyCode.Two then
+        SwitchAimPart()
+    elseif input.KeyCode == Enum.KeyCode.Three then
+        ToggleXRay()
+    end
+end)
+
+--==================================================
+-- RUN LOOP
+--==================================================
+
+-- Рендер для частиц
+RunService.Heartbeat:Connect(function()
+    UpdateParticles()
+end)
+
+-- Основной цикл аима
+RunService.RenderStepped:Connect(function(dt)
+    pcall(UpdateAim, dt)
+end)
+
+--==================================================
+-- СТАРТ
+--==================================================
+
+UpdateStatus()
+print("NOVA UI v4.1 LOADED")
