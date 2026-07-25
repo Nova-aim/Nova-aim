@@ -1,11 +1,11 @@
 --==================================================
--- NOVA UI SYSTEM v3.0
--- Loader + Terminal + Menu + Effects + AIM
+-- NOVA UI CORE v4.0
+-- Loader + Menu Base + Particles + Friends
 --==================================================
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
+local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local workspace = game:GetService("Workspace")
 
@@ -13,13 +13,13 @@ local Player = Players.LocalPlayer
 local GuiParent = Player:WaitForChild("PlayerGui")
 local Camera = workspace.CurrentCamera
 
-local old = GuiParent:FindFirstChild("NovaUI")
+local old = GuiParent:FindFirstChild("NOVA_UI")
 if old then
     old:Destroy()
 end
 
 local Gui = Instance.new("ScreenGui")
-Gui.Name = "NovaUI"
+Gui.Name = "NOVA_UI"
 Gui.IgnoreGuiInset = true
 Gui.ResetOnSpawn = false
 Gui.Parent = GuiParent
@@ -28,33 +28,16 @@ Gui.Parent = GuiParent
 -- COLORS
 --==================================================
 
-local Color = {
-    bg = Color3.fromRGB(8,8,8),
-    panel = Color3.fromRGB(18,18,18),
-    white = Color3.fromRGB(235,235,235),
-    gray = Color3.fromRGB(140,140,140),
-    green = Color3.fromRGB(120,255,150),
-    red = Color3.fromRGB(255,60,60),
-    dark = Color3.fromRGB(12,12,12),
+local C = {
+    Black = Color3.fromRGB(5,5,5),
+    Panel = Color3.fromRGB(15,15,15),
+    Soft = Color3.fromRGB(25,25,25),
+    White = Color3.fromRGB(240,240,240),
+    Gray = Color3.fromRGB(130,130,130),
+    Green = Color3.fromRGB(120,255,150),
+    Red = Color3.fromRGB(255,70,70),
+    Dark = Color3.fromRGB(8,8,8),
 }
-
---==================================================
--- FUNCTIONS
---==================================================
-
-local function Corner(obj,size)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0,size)
-    c.Parent = obj
-end
-
-local function Tween(obj,time,prop)
-    TweenService:Create(
-        obj,
-        TweenInfo.new(time,Enum.EasingStyle.Quint),
-        prop
-    ):Play()
-end
 
 --==================================================
 -- STATE
@@ -71,6 +54,8 @@ local State = {
     lostTimer = 0,
     searchTimer = 0,
     xrayTimer = 0,
+    currentTab = "software",
+    friendSelect = nil,
 }
 
 --==================================================
@@ -86,21 +71,124 @@ local Config = {
 }
 
 --==================================================
+-- UTILS
+--==================================================
+
+local function Corner(obj,r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0,r)
+    c.Parent = obj
+end
+
+local function Tween(obj,time,data)
+    TweenService:Create(
+        obj,
+        TweenInfo.new(
+            time,
+            Enum.EasingStyle.Quint,
+            Enum.EasingDirection.Out
+        ),
+        data
+    ):Play()
+end
+
+local function TweenIn(obj,time,data)
+    TweenService:Create(
+        obj,
+        TweenInfo.new(
+            time,
+            Enum.EasingStyle.Quint,
+            Enum.EasingDirection.In
+        ),
+        data
+    ):Play()
+end
+
+--==================================================
+-- PARTICLES SYSTEM
+--==================================================
+
+local function CreateParticles(parent,count)
+    local particles = {}
+    for i = 1,count do
+        local p = Instance.new("Frame")
+        local size = math.random(2,4)
+        p.Size = UDim2.new(0,size,0,size)
+        p.Position = UDim2.fromScale(math.random(), math.random())
+        p.BackgroundColor3 = C.White
+        p.BackgroundTransparency = 0.5
+        p.Parent = parent
+        Corner(p,10)
+        
+        local speed = math.random(30,60)
+        local direction = math.random(1,4)
+        local startPos = p.Position
+        
+        table.insert(particles, {
+            frame = p,
+            speed = speed,
+            direction = direction,
+            startPos = startPos,
+            phase = math.random() * 2 * math.pi,
+        })
+    end
+    
+    task.spawn(function()
+        while parent and parent.Parent do
+            for _, data in ipairs(particles) do
+                if data.frame and data.frame.Parent then
+                    local offsetX = math.sin(os.clock() * data.speed + data.phase) * 0.02
+                    local offsetY = math.cos(os.clock() * data.speed * 0.7 + data.phase) * 0.02
+                    data.frame.Position = UDim2.new(
+                        data.startPos.X.Scale + offsetX,
+                        0,
+                        data.startPos.Y.Scale + offsetY,
+                        0
+                    )
+                    data.frame.BackgroundTransparency = 0.3 + math.sin(os.clock() * data.speed * 0.3 + data.phase) * 0.2 + 0.2
+                end
+            end
+            task.wait(0.05)
+        end
+    end)
+    
+    return particles
+end
+
+--==================================================
 -- LOADER
 --==================================================
 
 local Loader = Instance.new("Frame")
 Loader.Size = UDim2.fromScale(1,1)
-Loader.BackgroundColor3 = Color.bg
+Loader.BackgroundColor3 = C.Black
 Loader.Parent = Gui
 
+local glowOverlay = Instance.new("Frame")
+glowOverlay.Size = UDim2.fromScale(1,1)
+glowOverlay.BackgroundTransparency = 1
+glowOverlay.BackgroundColor3 = C.Green
+glowOverlay.Parent = Loader
+
+local function GlowPulse()
+    while Loader and Loader.Parent do
+        Tween(glowOverlay, 2, {BackgroundTransparency = 0.95})
+        task.wait(2)
+        Tween(glowOverlay, 2, {BackgroundTransparency = 1})
+        task.wait(2)
+    end
+end
+task.spawn(GlowPulse)
+
+CreateParticles(Loader, 50)
+
 local Terminal = Instance.new("TextLabel")
-Terminal.Size = UDim2.new(1,-100,0,300)
-Terminal.Position = UDim2.new(0,50,0.25,0)
+Terminal.Size = UDim2.new(0.8,0,0,300)
+Terminal.Position = UDim2.new(0.1,0,0.2,0)
 Terminal.BackgroundTransparency = 1
-Terminal.TextColor3 = Color.green
+Terminal.TextColor3 = C.Green
 Terminal.Font = Enum.Font.Code
-Terminal.TextSize = 18
+Terminal.TextSize = 20
 Terminal.TextXAlignment = Enum.TextXAlignment.Left
 Terminal.TextYAlignment = Enum.TextYAlignment.Top
 Terminal.Parent = Loader
@@ -109,245 +197,529 @@ local lines = {
     "> NOVA SYSTEM BOOT",
     "> Loading modules...",
     "> Checking interface...",
-    "> Loading particles...",
+    "> Loading effects...",
+    "> Initializing engine...",
+    "> Connection stable",
     "> Engine ready",
     "",
     "READY? y/n"
 }
 
-for i,v in ipairs(lines) do
-    Terminal.Text = Terminal.Text .. v .. "\n"
-    task.wait(0.18)
+for _,text in ipairs(lines) do
+    Terminal.Text = Terminal.Text .. text .. "\n"
+    task.wait(0.35)
 end
 
---==================================================
--- PARTICLES
---==================================================
+local Yes = Instance.new("TextButton")
+Yes.Size = UDim2.new(0,120,0,45)
+Yes.Position = UDim2.new(0.5,-140,0.7,0)
+Yes.Text = "YES"
+Yes.TextColor3 = C.White
+Yes.BackgroundColor3 = C.Panel
+Yes.Font = Enum.Font.Code
+Yes.TextSize = 18
+Yes.Parent = Loader
+Corner(Yes,25)
 
-for i = 1,35 do
-    local p = Instance.new("Frame")
-    p.Size = UDim2.new(0,3,0,3)
-    p.Position = UDim2.new(math.random(),0,math.random(),0)
-    p.BackgroundColor3 = Color.white
-    p.BackgroundTransparency = 0.5
-    p.Parent = Loader
-    Corner(p,10)
-    
-    task.spawn(function()
-        while p.Parent do
-            Tween(
-                p,
-                math.random(3,6),
-                {
-                    Position = UDim2.new(
-                        math.random(),
-                        0,
-                        math.random(),
-                        0
-                    ),
-                    BackgroundTransparency = 1
-                }
-            )
-            task.wait(3)
-            p.BackgroundTransparency = 0.5
-        end
-    end)
-end
+local No = Instance.new("TextButton")
+No.Size = UDim2.new(0,120,0,45)
+No.Position = UDim2.new(0.5,20,0.7,0)
+No.Text = "NO"
+No.TextColor3 = C.White
+No.BackgroundColor3 = C.Panel
+No.Font = Enum.Font.Code
+No.TextSize = 18
+No.Parent = Loader
+Corner(No,25)
 
-task.wait(1)
-
-Tween(
-    Loader,
-    0.6,
-    {
-        BackgroundTransparency = 1
-    }
-)
-
-task.wait(0.7)
-Loader:Destroy()
-
---==================================================
--- FOV CIRCLE
---==================================================
-
-local fovCircle = Instance.new("ImageLabel")
-fovCircle.Size = UDim2.new(0, Config.FOV * 2, 0, Config.FOV * 2)
-fovCircle.Position = UDim2.new(0.5, -Config.FOV, 0.5, -Config.FOV)
-fovCircle.BackgroundTransparency = 1
-fovCircle.Image = "rbxassetid://4911621264"
-fovCircle.ImageColor3 = Color.green
-fovCircle.ImageTransparency = 0.4
-fovCircle.Visible = false
-fovCircle.Parent = Gui
-
---==================================================
--- CROSSHAIR
---==================================================
-
-local crosshair = Instance.new("Frame")
-crosshair.Size = UDim2.new(0, 4, 0, 4)
-crosshair.Position = UDim2.new(0.5, -2, 0.5, -2)
-crosshair.BackgroundColor3 = Color.green
-crosshair.BorderSizePixel = 0
-crosshair.Visible = false
-crosshair.Parent = Gui
-local crossCorner = Instance.new("UICorner")
-crossCorner.CornerRadius = UDim.new(1,0)
-crossCorner.Parent = crosshair
-
---==================================================
--- X-RAY CONTAINER
---==================================================
-
-local xrayContainer = Instance.new("Frame")
-xrayContainer.Size = UDim2.fromScale(1,1)
-xrayContainer.BackgroundTransparency = 1
-xrayContainer.BorderSizePixel = 0
-xrayContainer.Parent = Gui
+No.MouseButton1Click:Connect(function()
+    Terminal.Text = Terminal.Text .. "\nSYSTEM PAUSED"
+    No.Visible = false
+    Yes.Visible = false
+end)
 
 --==================================================
 -- MAIN MENU
 --==================================================
 
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0,430,0,450)
-Main.Position = UDim2.new(0.5,-215,0.5,-225)
-Main.BackgroundColor3 = Color.panel
-Main.Parent = Gui
-Corner(Main,25)
+local Main = nil
+local FriendsPanel = nil
+local SettingsPanel = nil
+local MiniLogo = nil
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1,0,0,50)
-Title.BackgroundTransparency = 1
-Title.Text = "NOVA"
-Title.TextColor3 = Color.white
-Title.Font = Enum.Font.Code
-Title.TextSize = 32
-Title.Parent = Main
-
--- КЛИК ПО ЗАГОЛОВКУ ДЛЯ СМЕНЫ ЦЕЛИ
-Title.Active = true
-Title.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        SwitchAimPart()
+local function CreateMainMenu()
+    Main = Instance.new("Frame")
+    Main.Size = UDim2.new(0,430,0,520)
+    Main.Position = UDim2.new(0.5,-215,0.5,-260)
+    Main.BackgroundColor3 = C.Panel
+    Main.BackgroundTransparency = 1
+    Main.Parent = Gui
+    Corner(Main,30)
+    
+    Tween(Main, 0.6, {BackgroundTransparency = 0})
+    
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1,0,0,60)
+    Title.BackgroundTransparency = 1
+    Title.Text = "NOVA"
+    Title.TextColor3 = C.White
+    Title.Font = Enum.Font.Code
+    Title.TextSize = 36
+    Title.Parent = Main
+    
+    -- Tabs
+    local Tabs = Instance.new("Frame")
+    Tabs.Size = UDim2.new(1,-40,0,40)
+    Tabs.Position = UDim2.new(0,20,0,70)
+    Tabs.BackgroundTransparency = 1
+    Tabs.Parent = Main
+    
+    local function CreateTab(text, x, callback)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.28,0,1,0)
+        btn.Position = UDim2.new(x,0,0,0)
+        btn.BackgroundColor3 = C.Soft
+        btn.Text = text
+        btn.TextColor3 = C.White
+        btn.Font = Enum.Font.Code
+        btn.TextSize = 14
+        btn.Parent = Tabs
+        Corner(btn,20)
+        
+        btn.MouseEnter:Connect(function()
+            Tween(btn, 0.2, {BackgroundColor3 = Color3.fromRGB(35,35,35)})
+        end)
+        btn.MouseLeave:Connect(function()
+            Tween(btn, 0.2, {BackgroundColor3 = C.Soft})
+        end)
+        btn.MouseButton1Click:Connect(callback)
+        return btn
     end
-end)
-
-local Tabs = Instance.new("Frame")
-Tabs.Size = UDim2.new(1,-40,0,45)
-Tabs.Position = UDim2.new(0,20,0,60)
-Tabs.BackgroundTransparency = 1
-Tabs.Parent = Main
-
-local function Button(text,pos)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0.45,0,1,0)
-    b.Position = pos
-    b.BackgroundColor3 = Color.bg
-    b.Text = text
-    b.TextColor3 = Color.white
-    b.Font = Enum.Font.Code
-    b.TextSize = 16
-    b.Parent = Tabs
-    Corner(b,20)
     
-    b.MouseEnter:Connect(function()
-        Tween(b,0.2,{
-            BackgroundColor3 = Color3.fromRGB(35,35,35)
-        })
-    end)
+    -- Content area
+    local Content = Instance.new("Frame")
+    Content.Size = UDim2.new(1,-40,0,280)
+    Content.Position = UDim2.new(0,20,0,125)
+    Content.BackgroundTransparency = 1
+    Content.Parent = Main
     
-    b.MouseLeave:Connect(function()
-        Tween(b,0.2,{
-            BackgroundColor3 = Color.bg
-        })
-    end)
+    local ContentText = Instance.new("TextLabel")
+    ContentText.Size = UDim2.new(1,0,1,0)
+    ContentText.BackgroundTransparency = 1
+    ContentText.TextColor3 = C.White
+    ContentText.Font = Enum.Font.Code
+    ContentText.TextSize = 16
+    ContentText.TextXAlignment = Enum.TextXAlignment.Left
+    ContentText.TextYAlignment = Enum.TextYAlignment.Top
+    ContentText.Parent = Content
     
-    return b
-end
-
-local SoftTab = Button("SOFTWARE", UDim2.new(0,0,0,0))
-local SetTab = Button("SETTINGS", UDim2.new(0.55,0,0,0))
-
-local Content = Instance.new("TextLabel")
-Content.Size = UDim2.new(1,-40,0,200)
-Content.Position = UDim2.new(0,20,0,130)
-Content.BackgroundTransparency = 1
-Content.TextColor3 = Color.white
-Content.Font = Enum.Font.Code
-Content.TextSize = 17
-Content.TextXAlignment = Enum.TextXAlignment.Left
-Content.TextYAlignment = Enum.TextYAlignment.Top
-Content.Text = [[
+    -- Buttons
+    local function CreateActionButton(text, y, col)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.45,0,0,40)
+        btn.Position = UDim2.new(0.275,0,y,0)
+        btn.BackgroundColor3 = C.Soft
+        btn.Text = text
+        btn.TextColor3 = C.White
+        btn.Font = Enum.Font.Code
+        btn.TextSize = 16
+        btn.Parent = Main
+        Corner(btn,25)
+        
+        btn.MouseEnter:Connect(function()
+            Tween(btn, 0.15, {BackgroundColor3 = Color3.fromRGB(35,35,35)})
+        end)
+        btn.MouseLeave:Connect(function()
+            Tween(btn, 0.15, {BackgroundColor3 = C.Soft})
+        end)
+        return btn
+    end
+    
+    local EnableBtn = CreateActionButton("ENABLE", 420)
+    local SwitchBtn = CreateActionButton("SWITCH", 470)
+    local MinimizeBtn = CreateActionButton("MINIMIZE", 520)
+    
+    local function UpdateContent()
+        local targetText = State.target and State.target.Name or "None"
+        local statusText = State.aimEnabled and "ACTIVE" or "READY"
+        local lockText = State.aimEnabled and (State.target and "LOCKED" or "Searching") or "Disabled"
+        
+        ContentText.Text = [[
 SYSTEM STATUS
 
-● Status: READY
+● Status: ]] .. statusText .. [[
 ● Connection: STABLE
 ● Engine: ACTIVE
 
 
 TARGET
 
-None
+]] .. targetText .. [[
 
 
 LOCK:
-Searching
+]] .. lockText .. [[
 
 HIT:
----
-]]
-Content.Parent = Main
+---]]
+    end
+    UpdateContent()
+    
+    -- Tab functions
+    local function ShowSoftware()
+        Content.Visible = true
+        if FriendsPanel then FriendsPanel.Visible = false end
+        if SettingsPanel then SettingsPanel.Visible = false end
+        UpdateContent()
+    end
+    
+    local function ShowFriends()
+        Content.Visible = false
+        if FriendsPanel then
+            FriendsPanel.Visible = true
+            UpdateFriendsList()
+        end
+        if SettingsPanel then SettingsPanel.Visible = false end
+    end
+    
+    local function ShowSettings()
+        Content.Visible = false
+        if FriendsPanel then FriendsPanel.Visible = false end
+        if SettingsPanel then SettingsPanel.Visible = true end
+    end
+    
+    CreateTab("SOFTWARE", 0, ShowSoftware)
+    CreateTab("FRIENDS", 0.36, ShowFriends)
+    CreateTab("SETTINGS", 0.72, ShowSettings)
+    
+    -- Friends Panel
+    FriendsPanel = Instance.new("Frame")
+    FriendsPanel.Size = UDim2.new(1,0,1,0)
+    FriendsPanel.BackgroundTransparency = 1
+    FriendsPanel.Visible = false
+    FriendsPanel.Parent = Content
+    
+    local FriendScroll = Instance.new("ScrollingFrame")
+    FriendScroll.Size = UDim2.new(1,0,1,0)
+    FriendScroll.BackgroundTransparency = 1
+    FriendScroll.BorderSizePixel = 0
+    FriendScroll.CanvasSize = UDim2.new(0,0,0,0)
+    FriendScroll.ScrollBarThickness = 3
+    FriendScroll.Parent = FriendsPanel
+    
+    local FriendLayout = Instance.new("UIListLayout")
+    FriendLayout.Padding = UDim.new(0, 6)
+    FriendLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    FriendLayout.Parent = FriendScroll
+    
+    local function UpdateFriendsList()
+        for _, child in pairs(FriendScroll:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+        
+        local players = {}
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= Player then
+                table.insert(players, plr)
+            end
+        end
+        
+        if #players == 0 then
+            local empty = Instance.new("TextLabel")
+            empty.Size = UDim2.new(1,0,0,30)
+            empty.BackgroundTransparency = 1
+            empty.Text = "No players in server"
+            empty.TextColor3 = C.Gray
+            empty.Font = Enum.Font.Code
+            empty.TextSize = 14
+            empty.Parent = FriendScroll
+            FriendScroll.CanvasSize = UDim2.new(0,0,0,40)
+            return
+        end
+        
+        table.sort(players, function(a,b) return a.Name < b.Name end)
+        
+        for _, plr in ipairs(players) do
+            local isFriend = false
+            for _, f in ipairs(State.friends) do
+                if f == plr then isFriend = true break end
+            end
+            
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1,0,0,40)
+            btn.BackgroundColor3 = C.Soft
+            btn.BackgroundTransparency = 0.5
+            btn.BorderSizePixel = 0
+            btn.Parent = FriendScroll
+            Corner(btn, 12)
+            
+            local name = Instance.new("TextLabel")
+            name.Size = UDim2.new(0.7,0,1,0)
+            name.Position = UDim2.new(0,12,0,0)
+            name.BackgroundTransparency = 1
+            name.Text = plr.Name
+            name.TextColor3 = isFriend and C.Green or C.White
+            name.Font = Enum.Font.Code
+            name.TextSize = 14
+            name.TextXAlignment = Enum.TextXAlignment.Left
+            name.Parent = btn
+            
+            local action = Instance.new("TextLabel")
+            action.Size = UDim2.new(0.2,0,1,0)
+            action.Position = UDim2.new(0.8,0,0,0)
+            action.BackgroundTransparency = 1
+            action.Text = isFriend and "✓" or "+"
+            action.TextColor3 = isFriend and C.Green or C.Gray
+            action.Font = Enum.Font.Code
+            action.TextSize = 18
+            action.Parent = btn
+            
+            btn.MouseButton1Click:Connect(function()
+                if isFriend then
+                    for i, f in ipairs(State.friends) do
+                        if f == plr then
+                            table.remove(State.friends, i)
+                            break
+                        end
+                    end
+                    UpdateFriendsList()
+                else
+                    table.insert(State.friends, plr)
+                    UpdateFriendsList()
+                end
+            end)
+        end
+        
+        FriendLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            FriendScroll.CanvasSize = UDim2.new(0,0,0, FriendLayout.AbsoluteContentSize.Y + 10)
+        end)
+        task.wait()
+        FriendScroll.CanvasSize = UDim2.new(0,0,0, FriendLayout.AbsoluteContentSize.Y + 10)
+    end
+    
+    -- Settings Panel
+    SettingsPanel = Instance.new("Frame")
+    SettingsPanel.Size = UDim2.new(1,0,1,0)
+    SettingsPanel.BackgroundTransparency = 1
+    SettingsPanel.Visible = false
+    SettingsPanel.Parent = Content
+    
+    local SettingsText = Instance.new("TextLabel")
+    SettingsText.Size = UDim2.new(1,0,1,0)
+    SettingsText.BackgroundTransparency = 1
+    SettingsText.TextColor3 = C.White
+    SettingsText.Font = Enum.Font.Code
+    SettingsText.TextSize = 16
+    SettingsText.TextXAlignment = Enum.TextXAlignment.Left
+    SettingsText.TextYAlignment = Enum.TextYAlignment.Top
+    SettingsText.Text = [[
+SETTINGS
 
---==================================================
--- ENABLE BUTTON
---==================================================
+Aim Part: ]] .. Config.AimPart .. [[
 
-local Enable = Instance.new("TextButton")
-Enable.Size = UDim2.new(0.5,0,0,45)
-Enable.Position = UDim2.new(0.25,0,0,345)
-Enable.Text = "ENABLE"
-Enable.BackgroundColor3 = Color.bg
-Enable.TextColor3 = Color.white
-Enable.Font = Enum.Font.Code
-Enable.TextSize = 18
-Enable.Parent = Main
-Corner(Enable,25)
+FOV: ]] .. Config.FOV .. [[
 
---==================================================
--- MINIMIZE
---==================================================
+Smoothness: ]] .. string.format("%.2f", Config.Smoothness) .. [[
 
-local Min = Instance.new("TextButton")
-Min.Size = UDim2.new(0.5,0,0,35)
-Min.Position = UDim2.new(0.25,0,0,400)
-Min.Text = "MINIMIZE"
-Min.BackgroundColor3 = Color.bg
-Min.TextColor3 = Color.white
-Min.Font = Enum.Font.Code
-Min.Parent = Main
-Corner(Min,20)
+Distance: ]] .. Config.Distance .. [[
+
+X-Ray: ]] .. (State.xrayEnabled and "ON" or "OFF") .. [[
+
+Friends: ]] .. #State.friends
+    SettingsText.Parent = SettingsPanel
+    
+    -- Button handlers
+    EnableBtn.MouseButton1Click:Connect(function()
+        State.aimEnabled = not State.aimEnabled
+        EnableBtn.Text = State.aimEnabled and "DISABLE" or "ENABLE"
+        EnableBtn.TextColor3 = State.aimEnabled and C.Red or C.White
+        UpdateContent()
+        if not State.aimEnabled then
+            State.target = nil
+            State.targetCF = nil
+            State.smoothCF = nil
+        end
+    end)
+    
+    SwitchBtn.MouseButton1Click:Connect(function()
+        if Config.AimPart == "Head" then
+            Config.AimPart = "HumanoidRootPart"
+            Config.BackupPart = "Torso"
+        else
+            Config.AimPart = "Head"
+            Config.BackupPart = "UpperTorso"
+        end
+        UpdateContent()
+        SettingsText.Text = [[
+SETTINGS
+
+Aim Part: ]] .. Config.AimPart .. [[
+
+FOV: ]] .. Config.FOV .. [[
+
+Smoothness: ]] .. string.format("%.2f", Config.Smoothness) .. [[
+
+Distance: ]] .. Config.Distance .. [[
+
+X-Ray: ]] .. (State.xrayEnabled and "ON" or "OFF") .. [[
+
+Friends: ]] .. #State.friends
+    end)
+    
+    -- Minimize
+    MinimizeBtn.MouseButton1Click:Connect(function()
+        Main.Visible = false
+        CreateMiniLogo()
+    end)
+    
+    return Main
+end
 
 --==================================================
 -- MINI LOGO
 --==================================================
 
-local Mini = Instance.new("TextButton")
-Mini.Size = UDim2.new(0,70,0,70)
-Mini.Position = UDim2.new(0.05,0,0.8,0)
-Mini.Text = "N"
-Mini.TextSize = 35
-Mini.Font = Enum.Font.Code
-Mini.TextColor3 = Color.white
-Mini.BackgroundColor3 = Color.panel
-Mini.Visible = false
-Mini.Parent = Gui
-Corner(Mini,50)
+local function CreateMiniLogo()
+    if MiniLogo and MiniLogo.Parent then
+        MiniLogo.Visible = true
+        return
+    end
+    
+    MiniLogo = Instance.new("TextButton")
+    MiniLogo.Size = UDim2.new(0,70,0,70)
+    MiniLogo.Position = UDim2.new(0.05,0,0.85,0)
+    MiniLogo.Text = "N"
+    MiniLogo.TextSize = 32
+    MiniLogo.Font = Enum.Font.Code
+    MiniLogo.TextColor3 = C.White
+    MiniLogo.BackgroundColor3 = C.Panel
+    MiniLogo.BackgroundTransparency = 0.5
+    MiniLogo.Parent = Gui
+    Corner(MiniLogo, 50)
+    
+    local glow = Instance.new("Frame")
+    glow.Size = UDim2.new(1.1,0,1.1,0)
+    glow.Position = UDim2.new(-0.05,-0.05,-0.05,-0.05)
+    glow.BackgroundTransparency = 1
+    glow.BackgroundColor3 = C.Green
+    glow.BorderSizePixel = 2
+    glow.BorderColor3 = C.Green
+    glow.BorderTransparency = 0.7
+    glow.Parent = MiniLogo
+    Corner(glow, 55)
+    
+    -- Pulse glow
+    task.spawn(function()
+        while MiniLogo and MiniLogo.Parent do
+            for i = 1, 3 do
+                Tween(glow, 1.5, {BorderTransparency = 0.3})
+                task.wait(1.5)
+                Tween(glow, 1.5, {BorderTransparency = 0.7})
+                task.wait(1.5)
+            end
+        end
+    end)
+    
+    -- Drag
+    local dragData = {dragging = false, startPos = nil, startOffset = nil}
+    
+    MiniLogo.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragData.dragging = true
+            dragData.startPos = input.Position
+            dragData.startOffset = MiniLogo.Position
+        end
+    end)
+    
+    UIS.InputChanged:Connect(function(input)
+        if dragData.dragging then
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                local delta = input.Position - dragData.startPos
+                MiniLogo.Position = UDim2.new(
+                    dragData.startOffset.X.Scale,
+                    dragData.startOffset.X.Offset + delta.X,
+                    dragData.startOffset.Y.Scale,
+                    dragData.startOffset.Y.Offset + delta.Y
+                )
+            end
+        end
+    end)
+    
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragData.dragging = false
+        end
+    end)
+    
+    MiniLogo.MouseButton1Click:Connect(function()
+        MiniLogo.Visible = false
+        if Main then Main.Visible = true end
+    end)
+end
 
 --==================================================
--- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+-- LOADER BUTTONS
 --==================================================
+
+Yes.MouseButton1Click:Connect(function()
+    Tween(Loader, 0.6, {BackgroundTransparency = 1})
+    task.wait(0.7)
+    Loader:Destroy()
+    CreateMainMenu()
+end)
+
+--==================================================
+-- HOTKEYS
+--==================================================
+
+UIS.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.One then
+        if State.aimEnabled then
+            State.aimEnabled = false
+            State.target = nil
+            State.targetCF = nil
+            State.smoothCF = nil
+        else
+            State.aimEnabled = true
+        end
+        if Main then
+            for _, btn in pairs(Main:GetDescendants()) do
+                if btn:IsA("TextButton") and btn.Text == "ENABLE" or btn.Text == "DISABLE" then
+                    btn.Text = State.aimEnabled and "DISABLE" or "ENABLE"
+                    btn.TextColor3 = State.aimEnabled and C.Red or C.White
+                end
+            end
+        end
+    elseif input.KeyCode == Enum.KeyCode.Two then
+        if Config.AimPart == "Head" then
+            Config.AimPart = "HumanoidRootPart"
+            Config.BackupPart = "Torso"
+        else
+            Config.AimPart = "Head"
+            Config.BackupPart = "UpperTorso"
+        end
+    elseif input.KeyCode == Enum.KeyCode.Three then
+        State.xrayEnabled = not State.xrayEnabled
+    end
+end)
+
+--==================================================
+-- AIM LOGIC
+--==================================================
+
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+local function UpdateFilter(char)
+    if char then
+        raycastParams.FilterDescendantsInstances = {char}
+    end
+end
+
+UpdateFilter(Player.Character)
+Player.CharacterAdded:Connect(UpdateFilter)
 
 local function IsAlive(plr)
     if not plr or not plr.Parent then return false end
@@ -363,34 +735,6 @@ local function IsFriend(plr)
     end
     return false
 end
-
-local function GetCenter()
-    local vp = Camera.ViewportSize
-    return Vector2.new(vp.X / 2, vp.Y / 2)
-end
-
-local function Round(inst, r)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, r or 8)
-    c.Parent = inst
-    return c
-end
-
---==================================================
--- АИМ ЛОГИКА
---==================================================
-
-local raycastParams = RaycastParams.new()
-raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-
-local function UpdateFilter(char)
-    if char then
-        raycastParams.FilterDescendantsInstances = {char}
-    end
-end
-
-UpdateFilter(Player.Character)
-Player.CharacterAdded:Connect(UpdateFilter)
 
 local function GetAimPart(plr)
     if not plr or not plr.Character then return nil end
@@ -430,138 +774,9 @@ local function IsVisible(plr)
     return false
 end
 
---==================================================
--- X-RAY ЛОГИКА
---==================================================
-
-local XRayParts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
-local XRayBoxes = {}
-
-local function CreateBox(plr)
-    if XRayBoxes[plr] then return end
-    if IsFriend(plr) then return end
-    
-    local box = Instance.new("Frame")
-    box.Size = UDim2.new(0, 30, 0, 40)
-    box.BackgroundTransparency = 1
-    box.Parent = xrayContainer
-    
-    local border = Instance.new("Frame")
-    border.Size = UDim2.new(1, 0, 1, 0)
-    border.BackgroundTransparency = 0.6
-    border.BackgroundColor3 = Color3.fromHSV(0, 1, 1)
-    border.BorderSizePixel = 0
-    border.Parent = box
-    Round(border, 3)
-    
-    local outline = Instance.new("Frame")
-    outline.Size = UDim2.new(1, -2, 1, -2)
-    outline.Position = UDim2.new(0, 1, 0, 1)
-    outline.BackgroundTransparency = 1
-    outline.BorderSizePixel = 1
-    outline.BorderColor3 = Color3.fromHSV(0, 1, 1)
-    outline.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    outline.BackgroundTransparency = 0.5
-    outline.Parent = box
-    Round(outline, 2)
-    
-    local name = Instance.new("TextLabel")
-    name.Size = UDim2.new(1, 0, 0, 14)
-    name.Position = UDim2.new(0, 0, 1, 0)
-    name.BackgroundTransparency = 1
-    name.Text = plr.Name
-    name.TextColor3 = Color3.fromHSV(0, 1, 1)
-    name.TextSize = 9
-    name.Font = Enum.Font.Code
-    name.TextStrokeTransparency = 0.2
-    name.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    name.Parent = box
-    
-    XRayBoxes[plr] = {
-        box = box,
-        border = border,
-        outline = outline,
-        name = name,
-    }
-end
-
-local function UpdateBox(plr, hue)
-    local data = XRayBoxes[plr]
-    if not data then return end
-    if not data.box or not data.box.Parent then
-        XRayBoxes[plr] = nil
-        return
-    end
-    if not plr or not plr.Character then
-        if data.box then data.box:Destroy() end
-        XRayBoxes[plr] = nil
-        return
-    end
-    
-    local color = Color3.fromHSV(hue, 1, 1)
-    data.border.BackgroundColor3 = color
-    data.outline.BorderColor3 = color
-    data.name.TextColor3 = color
-    
-    local parts = {}
-    for _, name in ipairs(XRayParts) do
-        local p = plr.Character:FindFirstChild(name)
-        if p then table.insert(parts, p) end
-    end
-    
-    if #parts == 0 then
-        data.box.Visible = false
-        return
-    end
-    
-    local minX, maxX, minY, maxY
-    for _, p in ipairs(parts) do
-        local pos, on = Camera:WorldToViewportPoint(p.Position)
-        if on then
-            if not minX then
-                minX, maxX = pos.X, pos.X
-                minY, maxY = pos.Y, pos.Y
-            else
-                if pos.X < minX then minX = pos.X end
-                if pos.X > maxX then maxX = pos.X end
-                if pos.Y < minY then minY = pos.Y end
-                if pos.Y > maxY then maxY = pos.Y end
-            end
-        end
-    end
-    
-    if not minX then
-        data.box.Visible = false
-        return
-    end
-    
-    local pad = 4
-    local w = maxX - minX + pad * 2
-    local h = maxY - minY + pad * 2
-    w = math.max(w, 16)
-    h = math.max(h, 24)
-    
-    data.box.Position = UDim2.new(0, minX - pad, 0, minY - pad)
-    data.box.Size = UDim2.new(0, w, 0, h)
-    data.box.Visible = true
-end
-
-local function ClearAllBoxes()
-    for plr in pairs(XRayBoxes) do
-        if XRayBoxes[plr] and XRayBoxes[plr].box then
-            XRayBoxes[plr].box:Destroy()
-        end
-        XRayBoxes[plr] = nil
-    end
-end
-
---==================================================
--- ПОИСК ЦЕЛИ
---==================================================
-
 local function FindBestTarget()
     if not Camera then return nil end
-    local center = GetCenter()
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local best = nil
     local bestDist = math.huge
     local fovSq = Config.FOV ^ 2
@@ -589,42 +804,10 @@ local function FindBestTarget()
     return best
 end
 
---==================================================
--- ОСНОВНОЙ ЦИКЛ
---==================================================
-
-local function Update(dt)
+local function UpdateAim(dt)
     if not Camera then return end
-    
-    -- X-Ray
-    if State.xrayEnabled then
-        State.hue = (State.hue + dt * 0.15) % 1
-        State.xrayTimer = State.xrayTimer + dt
-        
-        if State.xrayTimer >= 0.03 then
-            State.xrayTimer = 0
-            
-            for plr in pairs(XRayBoxes) do
-                if not plr or not plr.Parent or not IsAlive(plr) or IsFriend(plr) then
-                    if XRayBoxes[plr] and XRayBoxes[plr].box then
-                        XRayBoxes[plr].box:Destroy()
-                    end
-                    XRayBoxes[plr] = nil
-                end
-            end
-            
-            for _, plr in pairs(Players:GetPlayers()) do
-                if plr ~= Player and IsAlive(plr) and not IsFriend(plr) then
-                    CreateBox(plr)
-                    UpdateBox(plr, State.hue)
-                end
-            end
-        end
-    end
-    
     if not State.aimEnabled then return end
     
-    -- Аим
     State.searchTimer = State.searchTimer + dt
     
     if State.target and IsAlive(State.target) and not IsFriend(State.target) then
@@ -658,187 +841,11 @@ local function Update(dt)
         State.lostTimer = 0
         State.targetCF = nil
         State.smoothCF = nil
-        UpdateContent()
-    else
-        if State.target then
-            State.target = nil
-            State.targetCF = nil
-            State.smoothCF = nil
-        end
-        UpdateContent()
     end
 end
-
---==================================================
--- ОБНОВЛЕНИЕ КОНТЕНТА
---==================================================
-
-local function UpdateContent()
-    local targetText = State.target and State.target.Name or "None"
-    local lockText = State.aimEnabled and (State.target and "LOCKED" or "Searching") or "Disabled"
-    local hitText = State.target and "---" or "---"
-    
-    Content.Text = [[
-SYSTEM STATUS
-
-● Status: ]] .. (State.aimEnabled and "ACTIVE" or "READY") .. [[
-● Connection: STABLE
-● Engine: ACTIVE
-
-
-TARGET
-
-]] .. targetText .. [[
-
-
-LOCK:
-]] .. lockText .. [[
-
-HIT:
-]] .. hitText .. [[
-]]
-end
-
---==================================================
--- ФУНКЦИИ ДЛЯ КНОПОК
---==================================================
-
-local function ToggleAim()
-    State.aimEnabled = not State.aimEnabled
-    if State.aimEnabled then
-        Enable.Text = "DISABLE"
-        Enable.TextColor3 = Color.red
-        fovCircle.Visible = true
-        crosshair.Visible = true
-    else
-        Enable.Text = "ENABLE"
-        Enable.TextColor3 = Color.white
-        fovCircle.Visible = false
-        crosshair.Visible = false
-        State.target = nil
-        State.targetCF = nil
-        State.smoothCF = nil
-        ClearAllBoxes()
-    end
-    UpdateContent()
-end
-
-local function ToggleXRay()
-    State.xrayEnabled = not State.xrayEnabled
-    if not State.xrayEnabled then
-        ClearAllBoxes()
-    end
-    UpdateContent()
-end
-
-local function SwitchAimPart()
-    if Config.AimPart == "Head" then
-        Config.AimPart = "HumanoidRootPart"
-        Config.BackupPart = "Torso"
-    else
-        Config.AimPart = "Head"
-        Config.BackupPart = "UpperTorso"
-    end
-    UpdateContent()
-end
-
---==================================================
--- ПОДКЛЮЧЕНИЕ КНОПОК
---==================================================
-
-Enable.MouseButton1Click:Connect(ToggleAim)
-
-SoftTab.MouseButton1Click:Connect(function()
-    ToggleXRay()
-end)
-
-SetTab.MouseButton1Click:Connect(function()
-    SwitchAimPart()
-end)
-
-Min.MouseButton1Click:Connect(function()
-    Main.Visible = false
-    Mini.Visible = true
-end)
-
-Mini.MouseButton1Click:Connect(function()
-    Main.Visible = true
-    Mini.Visible = false
-end)
-
---==================================================
--- DRAG MINI LOGO
---==================================================
-
-local dragData = {
-    dragging = false,
-    startPos = nil,
-    startOffset = nil,
-}
-
-Mini.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragData.dragging = true
-        dragData.startPos = input.Position
-        dragData.startOffset = Mini.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragData.dragging then
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            local delta = input.Position - dragData.startPos
-            Mini.Position = UDim2.new(
-                dragData.startOffset.X.Scale,
-                dragData.startOffset.X.Offset + delta.X,
-                dragData.startOffset.Y.Scale,
-                dragData.startOffset.Y.Offset + delta.Y
-            )
-        end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragData.dragging = false
-    end
-end)
-
---==================================================
--- ГОРЯЧИЕ КЛАВИШИ
---==================================================
-
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.One then
-        ToggleAim()
-    elseif input.KeyCode == Enum.KeyCode.Two then
-        SwitchAimPart()
-    elseif input.KeyCode == Enum.KeyCode.Three then
-        ToggleXRay()
-    end
-end)
-
---==================================================
--- ОБНОВЛЕНИЕ КРОССХАИРА
---==================================================
-
-local function UpdateCrosshair()
-    if not Camera then return end
-    local center = GetCenter()
-    crosshair.Position = UDim2.fromOffset(center.X, center.Y)
-end
-
-Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateCrosshair)
-UserInputService.WindowFocused:Connect(UpdateCrosshair)
-
---==================================================
--- ЗАПУСК
---==================================================
-
-UpdateContent()
 
 RunService.RenderStepped:Connect(function(dt)
-    pcall(Update, dt)
+    pcall(UpdateAim, dt)
 end)
 
-print("NOVA UI v3.0 READY")
+print("NOVA UI v4.0 LOADED")
