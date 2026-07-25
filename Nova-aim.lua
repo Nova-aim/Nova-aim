@@ -1,5 +1,5 @@
 -- Nova v2.55
--- Загрузочный экран, финальная версия, бля
+-- Загрузочный экран, медленная анимация без полоски, бля
 
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -8,7 +8,7 @@ if CoreGui:FindFirstChild("Nova") then
     CoreGui.Nova:Destroy()
 end
 
--- цвета (однотипные, без анимации)
+-- цвета
 local Theme = {
     bg = Color3.fromRGB(10, 10, 16),
     surface = Color3.fromRGB(20, 20, 28),
@@ -27,9 +27,8 @@ local Theme = {
 local FONT = Enum.Font.SourceSans
 local FONT_BOLD = Enum.Font.SourceSansBold
 
--- иконки (крестик временно через rbxassetid)
 local Icons = {
-    Close = "rbxassetid://6031095305",  -- временно, жду твою иконку
+    Close = "rbxassetid://6031095305",
     Maximize = "rbxassetid://6031095457",
     Minimize = "rbxassetid://6031095388",
 }
@@ -41,7 +40,7 @@ local function Round(inst, r)
     return c
 end
 
--- анимация символов волной
+-- анимация символов (медленная)
 local animChars = {"|", "/", "-", "\\", "-", "/"}
 local animIndex = 1
 
@@ -93,7 +92,7 @@ function Boot:Create()
     bg.BorderSizePixel = 0
     bg.Parent = gui
     
-    -- шапка (с логотипом Termux)
+    -- шапка
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 44)
     header.BackgroundColor3 = Theme.surface
@@ -101,7 +100,7 @@ function Boot:Create()
     header.BorderSizePixel = 0
     header.Parent = bg
     
-    -- логотип Termux (квадратик)
+    -- логотип Termux
     local termuxIcon = Instance.new("Frame")
     termuxIcon.Size = UDim2.new(0, 22, 0, 22)
     termuxIcon.Position = UDim2.new(0, 14, 0.5, -11)
@@ -110,6 +109,15 @@ function Boot:Create()
     termuxIcon.BorderColor3 = Theme.pythonYellow
     termuxIcon.Parent = header
     Round(termuxIcon, 4)
+    
+    local iconText = Instance.new("TextLabel")
+    iconText.Size = UDim2.new(1, 0, 1, 0)
+    iconText.BackgroundTransparency = 1
+    iconText.Text = ">"
+    iconText.TextColor3 = Theme.pythonYellow
+    iconText.TextSize = 14
+    iconText.Font = FONT_BOLD
+    iconText.Parent = termuxIcon
     
     local headerText = Instance.new("TextLabel")
     headerText.Size = UDim2.new(1, -100, 1, 0)
@@ -122,7 +130,7 @@ function Boot:Create()
     headerText.TextXAlignment = Enum.TextXAlignment.Left
     headerText.Parent = header
     
-    -- кнопки с иконками
+    -- кнопки
     local function MakeIconBtn(x, icon)
         local btn = Instance.new("ImageButton")
         btn.Size = UDim2.new(0, 28, 0, 28)
@@ -206,22 +214,6 @@ function Boot:Create()
     cursor.Parent = inputContainer
     cursor.Visible = true
     
-    -- прогресс
-    local progressBg = Instance.new("Frame")
-    progressBg.Size = UDim2.new(0, 300, 0, 3)
-    progressBg.Position = UDim2.new(0.5, -150, 1, -16)
-    progressBg.BackgroundColor3 = Theme.surfaceHi
-    progressBg.BorderSizePixel = 0
-    progressBg.Parent = bg
-    Round(progressBg, 999)
-    
-    local progressFill = Instance.new("Frame")
-    progressFill.Size = UDim2.new(0, 0, 1, 0)
-    progressFill.BackgroundColor3 = Theme.accent
-    progressFill.BorderSizePixel = 0
-    progressFill.Parent = progressBg
-    Round(progressFill, 999)
-    
     -- хранилище строк
     local lines = {}
     local currentMsg = ""
@@ -233,17 +225,20 @@ function Boot:Create()
         local colorHex = color and string.format("<font color='rgb(%d,%d,%d)'>", color.R*255, color.G*255, color.B*255) or ""
         local reset = color and "</font>" or ""
         
+        local cleanMsg = msg:gsub("[|/\\%-]", ""):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+        if cleanMsg == "" then cleanMsg = msg end
+        
         if isStatic then
-            local line = colorHex .. "[" .. time .. "] " .. msg .. reset
+            local line = colorHex .. "[" .. time .. "] " .. cleanMsg .. reset
             table.insert(lines, line)
             currentMsg = ""
             currentColor = nil
             isAnimating = false
         else
-            currentMsg = msg
+            currentMsg = cleanMsg
             currentColor = color
             isAnimating = true
-            local line = colorHex .. "[" .. time .. "] " .. msg .. " " .. reset
+            local line = colorHex .. "[" .. time .. "] " .. cleanMsg .. " " .. reset
             table.insert(lines, line)
         end
         
@@ -267,10 +262,6 @@ function Boot:Create()
     
     function Boot:Render()
         consoleText.Text = table.concat(lines, "\n") .. "\n"
-    end
-    
-    function Boot:UpdateProgress(pct)
-        progressFill.Size = UDim2.new(pct, 0, 1, 0)
     end
     
     function Boot:ShowInput()
@@ -360,20 +351,16 @@ task.spawn(function()
         table.remove(shuffled, idx)
         if #shuffled == 0 then break end
         
-        local progress = i / steps
-        Boot:UpdateProgress(progress)
-        
         Boot:AddLine(msg, Theme.textMuted, false)
         
         local delay = stepTime * (0.6 + math.random() * 0.6)
         local startTime = tick()
         while tick() - startTime < delay do
             Boot:UpdateAnim()
-            task.wait(0.15)
+            task.wait(0.3) -- медленнее: 0.3 вместо 0.15
         end
     end
     
-    Boot:UpdateProgress(1)
     Boot:AddLine("", nil, true)
     Boot:AddLine("загрузка завершена, бля", Theme.green, true)
     Boot:AddLine("Nova готов, you are ready? y/n", Theme.amber, true)
