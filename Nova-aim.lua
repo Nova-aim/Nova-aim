@@ -1,5 +1,5 @@
 --==================================================
--- NOVA UI SYSTEM v4.1 FIXED
+-- NOVA UI SYSTEM v4.1 FULL FIX
 --==================================================
 
 local Players = game:GetService("Players")
@@ -91,6 +91,13 @@ local function Tween(obj,time,data)
 end
 
 --==================================================
+-- FORWARD DECLARATIONS (FIX #1)
+--==================================================
+
+local StartMenu
+local SwitchTab
+
+--==================================================
 -- LOADER
 --==================================================
 
@@ -120,7 +127,7 @@ Terminal.ZIndex = 110
 Terminal.Parent = Loader
 
 --==================================================
--- PARTICLES (Heartbeat)
+-- PARTICLES
 --==================================================
 
 local Particles = {}
@@ -152,7 +159,7 @@ for i = 1,40 do
     })
 end
 
-local function UpdateParticles(dt)
+local function UpdateParticles()
     local time = os.clock()
     for _, data in ipairs(Particles) do
         if data.frame and data.frame.Parent then
@@ -252,21 +259,8 @@ InputLine.ClearTextOnFocus = false
 InputLine.ZIndex = 151
 InputLine.Parent = ReadyFrame
 
--- Ждём завершения печати
-task.wait(0.5)
-while not bootComplete do
-    task.wait(0.1)
-end
-
--- Показываем строку ввода с анимацией
-ReadyFrame.Visible = true
-ReadyFrame.Position = UDim2.new(0.1,0,0.74,0)
-Tween(ReadyFrame, 0.6, {Position = UDim2.new(0.1,0,0.65,0)})
-task.wait(0.3)
-InputLine:CaptureFocus()
-
 --==================================================
--- INPUT HANDLERS
+-- CHECK ANSWER (FIX #2: StartMenu forward declared)
 --==================================================
 
 local function CheckAnswer()
@@ -278,6 +272,54 @@ local function CheckAnswer()
         InputLine.PlaceholderText = "cancelled"
     end
 end
+
+--==================================================
+-- START MENU FUNCTION (FIX #3: defined after Main)
+--==================================================
+
+-- MAIN WINDOW (создаём перед StartMenu)
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0,450,0,550)
+Main.Position = UDim2.new(0.5,-225,0.5,-275)
+Main.BackgroundColor3 = C.Panel
+Main.Visible = false
+Main.ZIndex = 10
+Corner(Main,30)
+Main.Parent = Gui
+
+-- Теперь StartMenu может использовать Main
+StartMenu = function()
+    if State.readyProcessed then return end
+    State.readyProcessed = true
+    
+    Tween(Loader, 0.7, {BackgroundTransparency = 1})
+    task.wait(0.7)
+    Loader.Visible = false
+    Main.Visible = true
+    Main.Size = UDim2.new(0,300,0,350)
+    Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
+    SwitchTab("software")
+end
+
+--==================================================
+-- WAIT FOR BOOT (FIX #4: не блокируем главный поток)
+--==================================================
+
+task.spawn(function()
+    while not bootComplete do
+        task.wait(0.1)
+    end
+    
+    ReadyFrame.Visible = true
+    ReadyFrame.Position = UDim2.new(0.1,0,0.74,0)
+    Tween(ReadyFrame, 0.6, {Position = UDim2.new(0.1,0,0.65,0)})
+    task.wait(0.3)
+    InputLine:CaptureFocus()
+end)
+
+--==================================================
+-- INPUT HANDLERS
+--==================================================
 
 -- ПК: Enter
 InputLine.FocusLost:Connect(function(enterPressed)
@@ -301,36 +343,6 @@ Loader.InputBegan:Connect(function(input)
         InputLine:CaptureFocus()
     end
 end)
-
---==================================================
--- MAIN WINDOW
---==================================================
-
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0,450,0,550)
-Main.Position = UDim2.new(0.5,-225,0.5,-275)
-Main.BackgroundColor3 = C.Panel
-Main.Visible = false
-Main.ZIndex = 10
-Corner(Main,30)
-Main.Parent = Gui
-
---==================================================
--- START MENU FUNCTION (ПОСЛЕ СОЗДАНИЯ MAIN)
---==================================================
-
-local function StartMenu()
-    if State.readyProcessed then return end
-    State.readyProcessed = true
-    
-    Tween(Loader, 0.7, {BackgroundTransparency = 1})
-    task.wait(0.7)
-    Loader.Visible = false
-    Main.Visible = true
-    Main.Size = UDim2.new(0,300,0,350)
-    Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
-    SwitchTab("software")
-end
 
 --==================================================
 -- TOP
@@ -626,7 +638,6 @@ local function UpdateFriendsList()
         end
     end
     
-    -- Очищаем старые подключения
     for _, conn in ipairs(FriendConnections) do
         if conn then conn:Disconnect() end
     end
@@ -705,7 +716,6 @@ local function UpdateFriendsList()
                 FriendInfo.BackgroundTransparency = 1
                 Tween(FriendInfo, 0.3, {BackgroundTransparency = 0})
                 
-                -- Временно отключаем старые подключения Confirm/Cancel
                 for _, c in ipairs(FriendConnections) do
                     if c then c:Disconnect() end
                 end
@@ -736,10 +746,10 @@ local function UpdateFriendsList()
 end
 
 --==================================================
--- TAB SWITCHING
+-- TAB SWITCHING (FIX #5: forward declared)
 --==================================================
 
-local function SwitchTab(tab)
+SwitchTab = function(tab)
     if tab == "software" then
         Status.Visible = true
         SettingsFrame.Visible = false
@@ -1002,12 +1012,4 @@ local function UpdateAim(dt)
             return
         end
         
-        State.lostTimer = State.lostTimer + dt
-        if State.lostTimer > 0.15 then
-            State.target = nil
-            State.targetCF = nil
-            State.smoothCF = nil
-        end
-    end
-    
-    if State.search
+        State.lostTimer = State.lostTimer +
