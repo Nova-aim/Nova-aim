@@ -1,5 +1,5 @@
 -- Nova v2.55
--- Загрузочный экран, медленная анимация без полоски, бля
+-- Загрузочный экран, исправленный, бля
 
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -40,7 +40,7 @@ local function Round(inst, r)
     return c
 end
 
--- анимация символов (медленная)
+-- анимация символов волной
 local animChars = {"|", "/", "-", "\\", "-", "/"}
 local animIndex = 1
 
@@ -92,7 +92,7 @@ function Boot:Create()
     bg.BorderSizePixel = 0
     bg.Parent = gui
     
-    -- шапка
+    -- шапка с логотипом Termux
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 44)
     header.BackgroundColor3 = Theme.surface
@@ -100,7 +100,7 @@ function Boot:Create()
     header.BorderSizePixel = 0
     header.Parent = bg
     
-    -- логотип Termux
+    -- логотип Termux (квадратик)
     local termuxIcon = Instance.new("Frame")
     termuxIcon.Size = UDim2.new(0, 22, 0, 22)
     termuxIcon.Position = UDim2.new(0, 14, 0.5, -11)
@@ -130,7 +130,7 @@ function Boot:Create()
     headerText.TextXAlignment = Enum.TextXAlignment.Left
     headerText.Parent = header
     
-    -- кнопки
+    -- кнопки с иконками
     local function MakeIconBtn(x, icon)
         local btn = Instance.new("ImageButton")
         btn.Size = UDim2.new(0, 28, 0, 28)
@@ -214,6 +214,9 @@ function Boot:Create()
     cursor.Parent = inputContainer
     cursor.Visible = true
     
+    -- прогресс (убран, но оставлю на всякий)
+    -- полоски нет, бля
+    
     -- хранилище строк
     local lines = {}
     local currentMsg = ""
@@ -225,6 +228,7 @@ function Boot:Create()
         local colorHex = color and string.format("<font color='rgb(%d,%d,%d)'>", color.R*255, color.G*255, color.B*255) or ""
         local reset = color and "</font>" or ""
         
+        -- чистим сообщение от лишних символов
         local cleanMsg = msg:gsub("[|/\\%-]", ""):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
         if cleanMsg == "" then cleanMsg = msg end
         
@@ -238,6 +242,7 @@ function Boot:Create()
             currentMsg = cleanMsg
             currentColor = color
             isAnimating = true
+            -- добавляем строку без символа (будет обновляться)
             local line = colorHex .. "[" .. time .. "] " .. cleanMsg .. " " .. reset
             table.insert(lines, line)
         end
@@ -253,6 +258,7 @@ function Boot:Create()
         local char = GetNextChar()
         local time = os.date("%H:%M:%S")
         
+        -- заменяем последнюю строку
         if #lines > 0 then
             lines[#lines] = colorHex .. "[" .. time .. "] " .. currentMsg .. " " .. char .. reset
         end
@@ -351,13 +357,15 @@ task.spawn(function()
         table.remove(shuffled, idx)
         if #shuffled == 0 then break end
         
+        -- добавляем новое сообщение
         Boot:AddLine(msg, Theme.textMuted, false)
         
+        -- анимируем последнее сообщение
         local delay = stepTime * (0.6 + math.random() * 0.6)
         local startTime = tick()
         while tick() - startTime < delay do
             Boot:UpdateAnim()
-            task.wait(0.3) -- медленнее: 0.3 вместо 0.15
+            task.wait(0.3)
         end
     end
     
