@@ -106,21 +106,6 @@ Terminal.TextYAlignment = Enum.TextYAlignment.Top
 Terminal.ZIndex = 101
 Terminal.Parent = Loader
 
-local InputLine = Instance.new("TextBox")
-InputLine.Size = UDim2.new(0.4,0,0,40)
-InputLine.Position = UDim2.new(0.1,0,0.65,0)
-InputLine.BackgroundColor3 = Colors.Dark
-InputLine.TextColor3 = Colors.White
-InputLine.PlaceholderText = ">"
-InputLine.PlaceholderColor3 = Colors.Gray
-InputLine.Font = Enum.Font.Code
-InputLine.TextSize = 20
-InputLine.ClearTextOnFocus = false
-InputLine.Visible = false
-InputLine.ZIndex = 101
-InputLine.Parent = Loader
-Corner(InputLine, 10)
-
 local function TypeLine(text)
     Terminal.Text = Terminal.Text .. "\n"
     for i = 1,#text do
@@ -145,9 +130,6 @@ task.spawn(function()
         TypeLine(v)
         task.wait(0.25)
     end
-    
-    InputLine.Visible = true
-    InputLine:CaptureFocus()
 end)
 
 --==================================================
@@ -684,7 +666,53 @@ end)
 -- LOADER INPUT (FIXED FOR PC & MOBILE)
 --==================================================
 
--- Обработка ввода с клавиатуры для ПК
+-- Создаём кнопку для отправки
+local SendBtn = Instance.new("TextButton")
+SendBtn.Size = UDim2.new(0.1,0,0,40)
+SendBtn.Position = UDim2.new(0.52,0,0.65,0)
+SendBtn.BackgroundColor3 = Colors.Dark
+SendBtn.Text = "→"
+SendBtn.TextColor3 = Colors.White
+SendBtn.Font = Enum.Font.Code
+SendBtn.TextSize = 24
+SendBtn.ZIndex = 101
+SendBtn.Visible = false
+SendBtn.Parent = Loader
+Corner(SendBtn, 10)
+
+-- Показываем поле ввода и кнопку после загрузки
+task.wait(6)
+
+local InputLine = Instance.new("TextBox")
+InputLine.Size = UDim2.new(0.35,0,0,40)
+InputLine.Position = UDim2.new(0.1,0,0.65,0)
+InputLine.BackgroundColor3 = Colors.Dark
+InputLine.TextColor3 = Colors.White
+InputLine.PlaceholderText = ">"
+InputLine.PlaceholderColor3 = Colors.Gray
+InputLine.Font = Enum.Font.Code
+InputLine.TextSize = 20
+InputLine.ClearTextOnFocus = false
+InputLine.ZIndex = 101
+InputLine.Parent = Loader
+Corner(InputLine, 10)
+
+InputLine.Visible = true
+SendBtn.Visible = true
+InputLine:CaptureFocus()
+
+-- Функция запуска меню
+local function StartMenu()
+    Tween(Loader, 0.5, {BackgroundTransparency = 1})
+    task.wait(0.6)
+    Loader.Visible = false
+    Main.Visible = true
+    Main.Size = UDim2.new(0,300,0,350)
+    Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
+    SwitchTab("software")
+end
+
+-- Обработка ввода с клавиатуры (ПК)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not InputLine.Visible then return end
@@ -694,31 +722,29 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if text == "" then return end
         
         if string.lower(text) == "y" then
-            Tween(Loader, 0.5, {BackgroundTransparency = 1})
-            task.wait(0.6)
-            Loader.Visible = false
-            Main.Visible = true
-            Main.Size = UDim2.new(0,300,0,350)
-            Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
-            SwitchTab("software")
+            StartMenu()
         end
     end
 end)
 
--- Обработка фокуса для мобильных устройств
+-- Обработка фокуса для мобильных
 InputLine.FocusLost:Connect(function(enterPressed)
     if not enterPressed then return end
     if InputLine.Text == "" then return end
     
     local text = InputLine.Text
     if string.lower(text) == "y" then
-        Tween(Loader, 0.5, {BackgroundTransparency = 1})
-        task.wait(0.6)
-        Loader.Visible = false
-        Main.Visible = true
-        Main.Size = UDim2.new(0,300,0,350)
-        Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
-        SwitchTab("software")
+        StartMenu()
+    end
+end)
+
+-- Кнопка отправки (для мобильных и ПК)
+SendBtn.MouseButton1Click:Connect(function()
+    local text = InputLine.Text
+    if text == "" then return end
+    
+    if string.lower(text) == "y" then
+        StartMenu()
     end
 end)
 
