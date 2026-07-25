@@ -1,26 +1,25 @@
 -- Nova v2.55
--- Загрузочный экран, исправленный, бля
+-- Настоящий Termux стиль с посимвольной печатью, бля
 
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 if CoreGui:FindFirstChild("Nova") then
     CoreGui.Nova:Destroy()
 end
 
--- цвета
+-- цвета как в терминале
 local Theme = {
-    bg = Color3.fromRGB(10, 10, 16),
-    surface = Color3.fromRGB(20, 20, 28),
-    surfaceHi = Color3.fromRGB(30, 30, 40),
-    accent = Color3.fromRGB(0, 220, 120),
-    text = Color3.fromRGB(190, 230, 210),
-    textMuted = Color3.fromRGB(110, 140, 120),
-    red = Color3.fromRGB(255, 90, 90),
+    bg = Color3.fromRGB(8, 8, 12),
+    surface = Color3.fromRGB(18, 18, 24),
+    surfaceHi = Color3.fromRGB(28, 28, 36),
+    text = Color3.fromRGB(180, 220, 200),
+    textMuted = Color3.fromRGB(100, 130, 110),
     green = Color3.fromRGB(80, 255, 130),
     amber = Color3.fromRGB(255, 210, 60),
+    red = Color3.fromRGB(255, 90, 90),
     cursor = Color3.fromRGB(0, 255, 100),
-    pythonBlue = Color3.fromRGB(60, 130, 255),
     pythonYellow = Color3.fromRGB(255, 215, 60),
 }
 
@@ -40,18 +39,7 @@ local function Round(inst, r)
     return c
 end
 
--- анимация символов волной
-local animChars = {"|", "/", "-", "\\", "-", "/"}
-local animIndex = 1
-
-function GetNextChar()
-    local char = animChars[animIndex]
-    animIndex = animIndex + 1
-    if animIndex > #animChars then animIndex = 1 end
-    return char
-end
-
--- сообщения
+-- сообщения для загрузки
 local BootMessages = {
     "инициализация ядра Python",
     "загрузка модулей Nova",
@@ -92,19 +80,19 @@ function Boot:Create()
     bg.BorderSizePixel = 0
     bg.Parent = gui
     
-    -- шапка с логотипом Termux
+    -- шапка Termux
     local header = Instance.new("Frame")
-    header.Size = UDim2.new(1, 0, 0, 44)
+    header.Size = UDim2.new(1, 0, 0, 40)
     header.BackgroundColor3 = Theme.surface
     header.BackgroundTransparency = 0.3
     header.BorderSizePixel = 0
     header.Parent = bg
     
-    -- логотип Termux (квадратик)
+    -- иконка Termux
     local termuxIcon = Instance.new("Frame")
-    termuxIcon.Size = UDim2.new(0, 22, 0, 22)
-    termuxIcon.Position = UDim2.new(0, 14, 0.5, -11)
-    termuxIcon.BackgroundColor3 = Theme.pythonBlue
+    termuxIcon.Size = UDim2.new(0, 20, 0, 20)
+    termuxIcon.Position = UDim2.new(0, 12, 0.5, -10)
+    termuxIcon.BackgroundColor3 = Color3.fromRGB(60, 130, 255)
     termuxIcon.BorderSizePixel = 2
     termuxIcon.BorderColor3 = Theme.pythonYellow
     termuxIcon.Parent = header
@@ -115,26 +103,26 @@ function Boot:Create()
     iconText.BackgroundTransparency = 1
     iconText.Text = ">"
     iconText.TextColor3 = Theme.pythonYellow
-    iconText.TextSize = 14
+    iconText.TextSize = 12
     iconText.Font = FONT_BOLD
     iconText.Parent = termuxIcon
     
     local headerText = Instance.new("TextLabel")
     headerText.Size = UDim2.new(1, -100, 1, 0)
-    headerText.Position = UDim2.new(0, 44, 0, 0)
+    headerText.Position = UDim2.new(0, 40, 0, 0)
     headerText.BackgroundTransparency = 1
     headerText.Text = "Termux  —  Nova v2.55"
     headerText.TextColor3 = Theme.text
-    headerText.TextSize = 15
+    headerText.TextSize = 14
     headerText.Font = FONT_BOLD
     headerText.TextXAlignment = Enum.TextXAlignment.Left
     headerText.Parent = header
     
-    -- кнопки с иконками
+    -- кнопки
     local function MakeIconBtn(x, icon)
         local btn = Instance.new("ImageButton")
-        btn.Size = UDim2.new(0, 28, 0, 28)
-        btn.Position = UDim2.new(0, x, 0.5, -14)
+        btn.Size = UDim2.new(0, 26, 0, 26)
+        btn.Position = UDim2.new(0, x, 0.5, -13)
         btn.BackgroundTransparency = 1
         btn.Image = icon
         btn.ImageColor3 = Theme.textMuted
@@ -143,14 +131,14 @@ function Boot:Create()
         return btn
     end
     
-    local closeBtn = MakeIconBtn(header.Size.X.Offset - 36, Icons.Close)
-    local maxBtn = MakeIconBtn(header.Size.X.Offset - 20, Icons.Maximize)
-    local minBtn = MakeIconBtn(header.Size.X.Offset - 4, Icons.Minimize)
+    local closeBtn = MakeIconBtn(header.Size.X.Offset - 34, Icons.Close)
+    local maxBtn = MakeIconBtn(header.Size.X.Offset - 18, Icons.Maximize)
+    local minBtn = MakeIconBtn(header.Size.X.Offset - 2, Icons.Minimize)
     
     -- консоль
     local console = Instance.new("ScrollingFrame")
-    console.Size = UDim2.new(1, -40, 1, -100)
-    console.Position = UDim2.new(0, 20, 0, 52)
+    console.Size = UDim2.new(1, -30, 1, -80)
+    console.Position = UDim2.new(0, 15, 0, 48)
     console.BackgroundColor3 = Theme.bg
     console.BackgroundTransparency = 1
     console.BorderSizePixel = 0
@@ -175,8 +163,8 @@ function Boot:Create()
     
     -- строка ввода
     local inputContainer = Instance.new("Frame")
-    inputContainer.Size = UDim2.new(0, 500, 0, 36)
-    inputContainer.Position = UDim2.new(0, 20, 1, -48)
+    inputContainer.Size = UDim2.new(0, 500, 0, 34)
+    inputContainer.Position = UDim2.new(0, 15, 1, -44)
     inputContainer.BackgroundColor3 = Theme.surfaceHi
     inputContainer.BackgroundTransparency = 0.5
     inputContainer.BorderSizePixel = 0
@@ -189,7 +177,7 @@ function Boot:Create()
     inputLabel.Position = UDim2.new(0, 8, 0, 0)
     inputLabel.BackgroundTransparency = 1
     inputLabel.Text = "$"
-    inputLabel.TextColor3 = Theme.accent
+    inputLabel.TextColor3 = Color3.fromRGB(0, 220, 120)
     inputLabel.TextSize = 14
     inputLabel.Font = FONT_BOLD
     inputLabel.Parent = inputContainer
@@ -214,60 +202,108 @@ function Boot:Create()
     cursor.Parent = inputContainer
     cursor.Visible = true
     
-    -- прогресс (убран, но оставлю на всякий)
-    -- полоски нет, бля
-    
-    -- хранилище строк
+    -- состояние печати
     local lines = {}
-    local currentMsg = ""
+    local isPrinting = false
+    local printQueue = {}
+    local currentLine = ""
     local currentColor = nil
-    local isAnimating = false
+    local lineIndex = 0
     
-    function Boot:AddLine(msg, color, isStatic)
+    -- функция печати по символам
+    function Boot:TypeLine(text, color, callback)
         local time = os.date("%H:%M:%S")
         local colorHex = color and string.format("<font color='rgb(%d,%d,%d)'>", color.R*255, color.G*255, color.B*255) or ""
         local reset = color and "</font>" or ""
         
-        -- чистим сообщение от лишних символов
-        local cleanMsg = msg:gsub("[|/\\%-]", ""):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
-        if cleanMsg == "" then cleanMsg = msg end
+        -- добавляем время в начало
+        local fullText = "[" .. time .. "] " .. text
         
-        if isStatic then
-            local line = colorHex .. "[" .. time .. "] " .. cleanMsg .. reset
-            table.insert(lines, line)
-            currentMsg = ""
-            currentColor = nil
-            isAnimating = false
-        else
-            currentMsg = cleanMsg
-            currentColor = color
-            isAnimating = true
-            -- добавляем строку без символа (будет обновляться)
-            local line = colorHex .. "[" .. time .. "] " .. cleanMsg .. " " .. reset
-            table.insert(lines, line)
+        -- создаём строку для печати
+        local line = ""
+        local charIndex = 1
+        
+        -- добавляем в очередь
+        table.insert(printQueue, {
+            text = fullText,
+            colorHex = colorHex,
+            reset = reset,
+            callback = callback
+        })
+        
+        -- если не печатаем, запускаем
+        if not isPrinting then
+            Boot:ProcessQueue()
         end
-        
-        Boot:Render()
     end
     
-    function Boot:UpdateAnim()
-        if not isAnimating or currentMsg == "" then return end
-        
-        local colorHex = currentColor and string.format("<font color='rgb(%d,%d,%d)'>", currentColor.R*255, currentColor.G*255, currentColor.B*255) or ""
-        local reset = currentColor and "</font>" or ""
-        local char = GetNextChar()
-        local time = os.date("%H:%M:%S")
-        
-        -- заменяем последнюю строку
-        if #lines > 0 then
-            lines[#lines] = colorHex .. "[" .. time .. "] " .. currentMsg .. " " .. char .. reset
+    function Boot:ProcessQueue()
+        if #printQueue == 0 then
+            isPrinting = false
+            return
         end
         
-        Boot:Render()
+        isPrinting = true
+        local item = printQueue[1]
+        table.remove(printQueue, 1)
+        
+        local text = item.text
+        local colorHex = item.colorHex
+        local reset = item.reset
+        local callback = item.callback
+        
+        -- создаём новую строку в консоли
+        local line = colorHex .. reset
+        table.insert(lines, line)
+        lineIndex = #lines
+        
+        -- печатаем по символам
+        local charIndex = 1
+        local function typeNextChar()
+            if charIndex > #text then
+                -- завершили печать строки
+                if callback then callback() end
+                Boot:ProcessQueue()
+                return
+            end
+            
+            -- берём следующий символ
+            local char = text:sub(charIndex, charIndex)
+            charIndex = charIndex + 1
+            
+            -- обновляем строку
+            local currentText = ""
+            for i = 1, charIndex - 1 do
+                currentText = currentText .. text:sub(i, i)
+            end
+            
+            lines[lineIndex] = colorHex .. currentText .. reset
+            Boot:Render()
+            
+            -- следующий символ через 30-50ms (как в терминале)
+            local delay = math.random(30, 50) / 1000
+            task.wait(delay)
+            
+            typeNextChar()
+        end
+        
+        typeNextChar()
     end
     
     function Boot:Render()
         consoleText.Text = table.concat(lines, "\n") .. "\n"
+        -- автоматический скролл вниз
+        console.CanvasPosition = Vector2.new(0, consoleText.TextBounds.Y)
+    end
+    
+    function Boot:AddStaticLine(msg, color)
+        local time = os.date("%H:%M:%S")
+        local colorHex = color and string.format("<font color='rgb(%d,%d,%d)'>", color.R*255, color.G*255, color.B*255) or ""
+        local reset = color and "</font>" or ""
+        
+        local line = colorHex .. "[" .. time .. "] " .. msg .. reset
+        table.insert(lines, line)
+        Boot:Render()
     end
     
     function Boot:ShowInput()
@@ -292,13 +328,12 @@ function Boot:Create()
             end
             
             if isYes then
-                isAnimating = false
-                Boot:AddLine("запуск Nova, погнали", Theme.green, true)
-                task.wait(0.5)
-                if StartNova then StartNova() end
+                Boot:TypeLine("запуск Nova, погнали", Theme.green, function()
+                    task.wait(0.5)
+                    if StartNova then StartNova() end
+                end)
             else
-                isAnimating = false
-                Boot:AddLine("отмена. перезапусти скрипт.", Theme.red, true)
+                Boot:TypeLine("отмена. перезапусти скрипт.", Theme.red)
                 inputContainer.Visible = false
             end
         end
@@ -338,41 +373,43 @@ end
 
 -- запускаем загрузку
 task.spawn(function()
-    Boot:AddLine("Termux environment initialized", Theme.green, true)
-    Boot:AddLine("Python 3.11.5 (Nova framework)", Theme.pythonYellow, true)
-    Boot:AddLine("", nil, true)
+    -- статичные сообщения (без анимации)
+    Boot:AddStaticLine("Termux environment initialized", Theme.green)
+    Boot:AddStaticLine("Python 3.11.5 (Nova framework)", Theme.pythonYellow)
+    Boot:AddStaticLine("")
     
+    -- перемешиваем сообщения
     local shuffled = {}
     for i, msg in ipairs(BootMessages) do
         table.insert(shuffled, msg)
     end
     
-    local steps = math.random(10, 18)
-    local totalTime = math.random(12, 30)
-    local stepTime = totalTime / steps
-    
+    -- выбираем случайные сообщения (10-15 штук)
+    local steps = math.random(10, 15)
+    local selected = {}
     for i = 1, steps do
-        local idx = math.random(1, #shuffled)
-        local msg = shuffled[idx]
-        table.remove(shuffled, idx)
         if #shuffled == 0 then break end
-        
-        -- добавляем новое сообщение
-        Boot:AddLine(msg, Theme.textMuted, false)
-        
-        -- анимируем последнее сообщение
-        local delay = stepTime * (0.6 + math.random() * 0.6)
-        local startTime = tick()
-        while tick() - startTime < delay do
-            Boot:UpdateAnim()
-            task.wait(0.3)
-        end
+        local idx = math.random(1, #shuffled)
+        table.insert(selected, shuffled[idx])
+        table.remove(shuffled, idx)
     end
     
-    Boot:AddLine("", nil, true)
-    Boot:AddLine("загрузка завершена, бля", Theme.green, true)
-    Boot:AddLine("Nova готов, you are ready? y/n", Theme.amber, true)
+    -- печатаем каждое сообщение с задержкой
+    local delayBetween = math.random(1, 3) / 10 -- 0.1-0.3 сек между строками
     
+    for i, msg in ipairs(selected) do
+        Boot:TypeLine(msg, Theme.textMuted)
+        task.wait(delayBetween + math.random() * 0.2)
+    end
+    
+    -- финальные сообщения
+    task.wait(0.5)
+    Boot:AddStaticLine("")
+    Boot:TypeLine("загрузка завершена, бля", Theme.green)
+    task.wait(0.3)
+    Boot:TypeLine("Nova готов, you are ready? y/n", Theme.amber)
+    
+    task.wait(0.5)
     Boot:ShowInput()
 end)
 
