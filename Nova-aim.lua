@@ -1,87 +1,80 @@
--- NOVA TERMINAL BOOT v3.0
+-- NOVA BOOT SCREEN v2.55
 
 local CoreGui = game:GetService("CoreGui")
 
-if CoreGui:FindFirstChild("NovaTerminal") then
-    CoreGui.NovaTerminal:Destroy()
+if CoreGui:FindFirstChild("NovaBoot") then
+    CoreGui.NovaBoot:Destroy()
 end
 
 local Colors = {
-    bg = Color3.fromRGB(5,5,5),
-    panel = Color3.fromRGB(15,15,15),
-    green = Color3.fromRGB(0,255,90),
-    dim = Color3.fromRGB(90,170,100),
-    white = Color3.fromRGB(220,220,220),
-    yellow = Color3.fromRGB(255,210,60)
+    Background = Color3.fromRGB(4,4,4),
+    Panel = Color3.fromRGB(12,12,12),
+    Green = Color3.fromRGB(0,255,90),
+    Gray = Color3.fromRGB(120,180,120),
+    White = Color3.fromRGB(220,220,220),
+    Yellow = Color3.fromRGB(255,220,70),
+    Red = Color3.fromRGB(255,70,70)
 }
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "NovaTerminal"
+gui.Name = "NovaBoot"
 gui.IgnoreGuiInset = true
 gui.ResetOnSpawn = false
-gui.DisplayOrder = 999
+gui.DisplayOrder = 9999
 gui.Parent = CoreGui
 
 
 local main = Instance.new("Frame")
 main.Size = UDim2.fromScale(1,1)
-main.BackgroundColor3 = Colors.bg
+main.BackgroundColor3 = Colors.Background
 main.BorderSizePixel = 0
 main.Parent = gui
 
 
 -- верхняя панель
+
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1,0,0,34)
-header.BackgroundColor3 = Colors.panel
+header.Size = UDim2.new(1,0,0,35)
+header.BackgroundColor3 = Colors.Panel
 header.BorderSizePixel = 0
 header.Parent = main
 
 
-local logo = Instance.new("TextLabel")
-logo.Size = UDim2.new(0,40,1,0)
-logo.Position = UDim2.new(0,10,0,0)
-logo.BackgroundTransparency = 1
-logo.Text = ">"
-logo.Font = Enum.Font.Code
-logo.TextSize = 22
-logo.TextColor3 = Colors.green
-logo.Parent = header
-
-
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0,250,1,0)
-title.Position = UDim2.new(0,45,0,0)
+title.Position = UDim2.new(0,15,0,0)
 title.BackgroundTransparency = 1
-title.Text = "Nova Terminal v2.55"
+title.Text = "Nova v2.55"
 title.Font = Enum.Font.Code
-title.TextSize = 15
-title.TextColor3 = Colors.white
+title.TextSize = 16
+title.TextColor3 = Colors.White
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = header
 
 
 -- кнопки
-local function Button(text,pos)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0,30,0,24)
-    b.Position = pos
+
+local function CreateButton(text,x)
+    local b = Instance.new("TextLabel")
+    b.Size = UDim2.new(0,30,0,30)
+    b.Position = UDim2.new(1,x,0,2)
     b.BackgroundTransparency = 1
     b.Text = text
     b.Font = Enum.Font.Code
     b.TextSize = 18
-    b.TextColor3 = Colors.dim
+    b.TextColor3 = Colors.Gray
     b.Parent = header
 end
 
-Button("_",UDim2.new(1,-100,0,5))
-Button("□",UDim2.new(1,-65,0,5))
-Button("X",UDim2.new(1,-30,0,5))
+CreateButton("_",-100)
+CreateButton("□",-65)
+CreateButton("×",-30)
 
 
 -- консоль
+
 local console = Instance.new("ScrollingFrame")
-console.Size = UDim2.new(1,-30,1,-60)
+console.Size = UDim2.new(1,-30,1,-55)
 console.Position = UDim2.new(0,15,0,45)
 console.BackgroundTransparency = 1
 console.BorderSizePixel = 0
@@ -89,106 +82,105 @@ console.ScrollBarThickness = 3
 console.Parent = main
 
 
-local text = Instance.new("TextLabel")
-text.Size = UDim2.new(1,-10,0,0)
-text.BackgroundTransparency = 1
-text.Font = Enum.Font.Code
-text.TextSize = 15
-text.TextColor3 = Colors.green
-text.TextXAlignment = Enum.TextXAlignment.Left
-text.TextYAlignment = Enum.TextYAlignment.Top
-text.RichText = true
-text.AutomaticSize = Enum.AutomaticSize.Y
-text.Parent = console
+local output = Instance.new("TextLabel")
+output.Size = UDim2.new(1,-10,0,0)
+output.BackgroundTransparency = 1
+output.AutomaticSize = Enum.AutomaticSize.Y
+output.Font = Enum.Font.Code
+output.TextSize = 15
+output.TextColor3 = Colors.Green
+output.TextXAlignment = Enum.TextXAlignment.Left
+output.TextYAlignment = Enum.TextYAlignment.Top
+output.RichText = true
+output.Parent = console
 
 
 local lines = {}
 
 
-local function Render()
-    text.Text = table.concat(lines,"\n")
-    console.CanvasSize = UDim2.new(
-        0,0,
-        0,text.AbsoluteSize.Y+30
-    )
-    console.CanvasPosition = Vector2.new(
-        0,
-        math.max(0,text.AbsoluteSize.Y)
+local function RGB(color)
+    return string.format(
+        "rgb(%d,%d,%d)",
+        math.floor(color.R*255),
+        math.floor(color.G*255),
+        math.floor(color.B*255)
     )
 end
 
 
-local function TypeLine(msg,color)
-    local prefix = "["..os.date("%H:%M:%S").."] "
-    local result = prefix
+local function Render()
+    output.Text = table.concat(lines,"\n")
 
-    table.insert(lines,result.."█")
-    Render()
+    task.wait()
 
-    for i=1,#msg do
-        result = result..msg:sub(i,i)
+    console.CanvasSize = UDim2.new(
+        0,
+        0,
+        0,
+        output.TextBounds.Y + 40
+    )
 
-        lines[#lines] = 
-            "<font color='rgb("..
-            color.R*255..","..
-            color.G*255..","..
-            color.B*255..
-            ")'>"..
-            result..
-            "█</font>"
+    console.CanvasPosition = Vector2.new(
+        0,
+        console.CanvasSize.Y.Offset
+    )
+end
+
+
+local function Type(text,color)
+
+    local line = ""
+
+    local index = #lines + 1
+    lines[index] = ""
+
+    for i = 1,#text do
+        
+        line = line .. text:sub(i,i)
+
+        lines[index] =
+            "<font color='"..
+            RGB(color)..
+            "'>"..
+            "["..os.date("%H:%M:%S").."] "..line.."▌"..
+            "</font>"
 
         Render()
 
         task.wait(0.04)
     end
 
-    lines[#lines] = 
-        "<font color='rgb("..
-        color.R*255..","..
-        color.G*255..","..
-        color.B*255..
-        ")'>"..
-        result..
+
+    lines[index] =
+        "<font color='"..
+        RGB(color)..
+        "'>"..
+        "["..os.date("%H:%M:%S").."] "..line..
         "</font>"
 
     Render()
 end
 
 
-local boot = {
-    "Nova kernel loading...",
-    "Checking modules...",
-    "Loading configuration...",
-    "Starting Python environment...",
-    "Preparing interface...",
-    "Optimizing performance...",
-    "Security check complete...",
-    "Nova initialization complete"
-}
-
 
 task.spawn(function()
 
-    TypeLine(
-        "Nova Terminal v2.55",
-        Colors.white
-    )
+    local messages = {
+        "Запуск Nova...",
+        "Загрузка модулей...",
+        "Проверка конфигурации...",
+        "Инициализация интерфейса...",
+        "Оптимизация системы...",
+        "Nova готова."
+    }
 
-    TypeLine(
-        "Linux environment ready",
-        Colors.dim
-    )
 
-    for _,v in ipairs(boot) do
-        task.wait(.2)
-        TypeLine(v,Colors.green)
+    for _,msg in ipairs(messages) do
+        Type(msg,Colors.Green)
+        task.wait(0.25)
     end
 
-    task.wait(.5)
 
-    TypeLine(
-        "Continue? (y/n)",
-        Colors.yellow
-    )
+    Type("Продолжить? (y/n)",Colors.Yellow)
 
 end)
