@@ -1,5 +1,5 @@
 -- Nova v2.54
--- Всё работает, проверял
+-- Бля, теперь с нормальными аватарками и выбором друзей
 
 -- Подключаем нужную хуйню
 local Players = game:GetService("Players")
@@ -11,139 +11,105 @@ local Player = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 
 -- Чистим старый мусор
-if CoreGui:FindFirstChild("NovaUI") then
-    CoreGui.NovaUI:Destroy()
+if CoreGui:FindFirstChild("Nova") then
+    CoreGui.Nova:Destroy()
 end
 
--- Цвета для темы (чё по кайфу)
+-- Цвета для темы
 local Theme = {
-    bg = Color3.fromRGB(12, 12, 15),
-    surface = Color3.fromRGB(18, 18, 22),
-    surfaceHi = Color3.fromRGB(25, 25, 30),
-    border = Color3.fromRGB(45, 45, 55),
-    borderHi = Color3.fromRGB(80, 80, 95),
-    accent = Color3.fromRGB(220, 220, 220),
-    accentDim = Color3.fromRGB(120, 120, 120),
-    green = Color3.fromRGB(0, 255, 127),
-    greenDim = Color3.fromRGB(20, 70, 45),
-    red = Color3.fromRGB(255, 90, 90),
-    redDim = Color3.fromRGB(60, 18, 18),
-    amber = Color3.fromRGB(255, 200, 60),
-    text = Color3.fromRGB(240, 240, 240),
-    textMuted = Color3.fromRGB(150, 150, 150),
+    bg = Color3.fromRGB(28, 28, 35),
+    surface = Color3.fromRGB(38, 38, 45),
+    surfaceHi = Color3.fromRGB(48, 48, 55),
+    border = Color3.fromRGB(58, 58, 65),
+    accent = Color3.fromRGB(80, 200, 255),
+    green = Color3.fromRGB(80, 230, 140),
+    red = Color3.fromRGB(255, 100, 110),
+    amber = Color3.fromRGB(255, 200, 80),
+    text = Color3.fromRGB(220, 225, 235),
+    textMuted = Color3.fromRGB(150, 155, 165),
 }
 
--- Иконки (rbxassetid)
-local Icons = {
-    Minimize = "rbxassetid://6031095388",  -- минус
-    Maximize = "rbxassetid://6031095457", -- квадрат
-    Close = "rbxassetid://6031095305",    -- крест
-    Add = "rbxassetid://6031095762",      -- плюс
-    Check = "rbxassetid://6031095657",    -- галочка
-    Remove = "rbxassetid://6031095548",   -- минус в круге
-    Settings = "rbxassetid://6031095864", -- шестерёнка
-    Friends = "rbxassetid://6031095983",  -- друзья
-    Target = "rbxassetid://6031096195",   -- цель
-}
+local FONT = Enum.Font.SourceSans
 
--- Всякое состояние (настройки, переменные и т.п)
+-- Всякое состояние
 local State = {
     enabled = false,
-    destroyed = false,
     target = nil,
     targetCF = nil,
     smoothCF = nil,
-    killCount = 0,
+    friends = {},
+    hue = 0,
+    killed = 0,
     lostTimer = 0,
     searchTimer = 0,
     xrayTimer = 0,
-    hue = 0,
-    friends = {},
-    minimized = false,
-    maximized = false,
+    showFriendSelector = false,
 }
 
--- Для X-Ray всякая херня
+-- Для X-Ray
 local XRay = {
     enabled = true,
     boxes = {},
     container = nil,
-    cache = {},
-    cacheTimers = {},
 }
 
--- Настройки (тут всё понятно)
+-- Настройки
 local Config = {
     AimPart = "Head",
     BackupPart = "UpperTorso",
-    FOV = 50,
+    FOV = 60,
     Smoothness = 0.85,
-    DistanceLimit = 250,
-    PredictionStrength = 0.6,
-    BulletSpeed = 1800,
-    LostTimeout = 0.1,
-    SearchInterval = 0.05,
-    XRayUpdateInterval = 0.025,
-    ShowFOV = true,
+    Distance = 250,
 }
-
-local DIST_LIMIT_SQ = Config.DistanceLimit * Config.DistanceLimit
 
 -- Вспомогательная хуйня
 
-local function getCenter()
-    local vp = Camera.ViewportSize
-    return Vector2.new(vp.X / 2, vp.Y / 2)
-end
-
-local function isAlive(plr)
+local function IsAlive(plr)
     if not plr or not plr.Parent then return false end
     if not plr.Character or not plr.Character.Parent then return false end
-    local humanoid = plr.Character:FindFirstChild("Humanoid")
-    return humanoid and humanoid.Health > 0
+    local hum = plr.Character:FindFirstChild("Humanoid")
+    return hum and hum.Health > 0
 end
 
-local function isFriend(plr)
+local function IsFriend(plr)
     if not plr then return false end
-    for _, friend in ipairs(State.friends) do
-        if friend == plr then return true end
+    for _, f in ipairs(State.friends) do
+        if f == plr then return true end
     end
     return false
 end
 
--- Создание скруглений для кнопок
-local function makeCorner(inst, r)
+local function Round(inst, r)
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, r or 10)
+    c.CornerRadius = UDim.new(0, r or 8)
     c.Parent = inst
     return c
 end
 
--- Обводка для элементов
-local function makeStroke(inst, col, t)
-    local s = Instance.new("UIStroke")
-    s.Color = col or Theme.border
-    s.Thickness = t or 1
-    s.Parent = inst
-    return s
-end
-
--- Аватарки для друзей
-local function makeAvatar(plr, size)
+-- Создание аватарки (из профиля)
+local function MakeAvatar(plr, size)
     local container = Instance.new("Frame")
     container.Size = UDim2.new(0, size, 0, size)
-    container.BackgroundTransparency = 1
+    container.BackgroundColor3 = Theme.surface
     container.ClipsDescendants = true
+    container.BorderSizePixel = 0
+    Round(container, 999)
     
     local img = Instance.new("ImageLabel")
     img.Size = UDim2.new(1, 0, 1, 0)
-    img.BackgroundColor3 = Theme.surfaceHi
-    pcall(function()
-        img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-    end)
+    img.BackgroundColor3 = Theme.surface
     img.ScaleType = Enum.ScaleType.Fit
+    img.BorderSizePixel = 0
+    
+    -- Загружаем аву из профиля
+    pcall(function()
+        local thumbType = Enum.ThumbnailType.HeadShot
+        local thumbSize = Enum.ThumbnailSize.Size420x420
+        img.Image = Players:GetUserThumbnailAsync(plr.UserId, thumbType, thumbSize)
+    end)
+    
     img.Parent = container
-    makeCorner(img, 999)
+    Round(img, 999)
     
     return container
 end
@@ -153,9 +119,9 @@ end
 local UI = {}
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
-local function BuildUI()
+function UI:Build()
     local gui = Instance.new("ScreenGui")
-    gui.Name = "NovaUI"
+    gui.Name = "Nova"
     gui.ResetOnSpawn = false
     gui.IgnoreGuiInset = true
     gui.Parent = CoreGui
@@ -163,573 +129,362 @@ local function BuildUI()
     
     -- Главное окно
     local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 480, 0, 420)
-    main.Position = UDim2.new(0.5, -240, 0.5, -210)
+    main.Size = UDim2.new(0, 420, 0, 380)
+    main.Position = UDim2.new(0.5, -210, 0.5, -190)
     main.BackgroundColor3 = Theme.bg
-    main.BackgroundTransparency = 0.05
+    main.BackgroundTransparency = 0.03
     main.BorderSizePixel = 0
     main.ClipsDescendants = true
     main.Parent = gui
-    makeCorner(main, 16)
-    makeStroke(main, Theme.borderHi, 1)
+    Round(main, 12)
     
-    -- Шапка
+    -- Хедер
     local header = Instance.new("Frame")
-    header.Size = UDim2.new(1, 0, 0, 42)
+    header.Size = UDim2.new(1, 0, 0, 36)
     header.BackgroundColor3 = Theme.surface
     header.BackgroundTransparency = 0.5
     header.BorderSizePixel = 0
     header.Parent = main
-    makeCorner(header, 16)
+    Round(header, 12)
     
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -100, 1, 0)
-    title.Position = UDim2.new(0, 14, 0, 0)
+    title.Size = UDim2.new(1, -80, 1, 0)
+    title.Position = UDim2.new(0, 12, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "NOVA v2.54"
+    title.Text = "nova >"
     title.TextColor3 = Theme.text
-    title.TextSize = 16
-    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.Font = FONT
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = header
     
-    -- Кнопки управления окном (с иконками)
-    local winButtons = {}
-    local btnData = {
-        {icon = Icons.Minimize, pos = 1, action = "minimize"},
-        {icon = Icons.Maximize, pos = 2, action = "maximize"},
-        {icon = Icons.Close, pos = 3, action = "close"},
-    }
-    for i, data in ipairs(btnData) do
-        local btn = Instance.new("ImageButton")
-        btn.Size = UDim2.new(0, 30, 1, 0)
-        btn.Position = UDim2.new(1, -30 * (4 - data.pos), 0, 0)
-        btn.BackgroundTransparency = 1
-        btn.Image = data.icon
-        btn.ImageColor3 = Theme.textMuted
-        btn.ScaleType = Enum.ScaleType.Fit
-        btn.Parent = header
-        winButtons[data.action] = btn
+    -- Кнопки управления (точки)
+    local function Dot(x, col)
+        local d = Instance.new("Frame")
+        d.Size = UDim2.new(0, 12, 0, 12)
+        d.Position = UDim2.new(0, x, 0.5, -6)
+        d.BackgroundColor3 = col
+        d.BorderSizePixel = 0
+        d.Parent = header
+        Round(d, 999)
+        return d
     end
     
-    -- Вкладки
-    local tabs = Instance.new("Frame")
-    tabs.Size = UDim2.new(1, 0, 0, 36)
-    tabs.Position = UDim2.new(0, 0, 0, 42)
-    tabs.BackgroundColor3 = Theme.surface
-    tabs.BackgroundTransparency = 0.3
-    tabs.BorderSizePixel = 0
-    tabs.Parent = main
+    local closeBtn = Dot(header.Size.X.Offset - 36, Theme.red)
+    local maxBtn = Dot(header.Size.X.Offset - 20, Theme.amber)
+    local minBtn = Dot(header.Size.X.Offset - 4, Theme.green)
     
-    local tabButtons = {}
-    local tabContents = {}
-    local activeTab = "main"
-    
-    local function switchTab(tab)
-        activeTab = tab
-        for t, btn in pairs(tabButtons) do
-            btn.BackgroundTransparency = (t == tab) and 0.2 or 1
-            btn.ImageColor3 = (t == tab) and Theme.text or Theme.textMuted
-        end
-        for t, cont in pairs(tabContents) do
-            cont.Visible = (t == tab)
-        end
-    end
-    
-    local tabNames = {"Главная", "Друзья", "Настройки"}
-    local tabIcons = {Icons.Target, Icons.Friends, Icons.Settings}
-    
-    for i, name in ipairs(tabNames) do
-        local t = (i == 1) and "main" or (i == 2) and "friends" or "settings"
-        local btn = Instance.new("ImageButton")
-        btn.Size = UDim2.new(0, 120, 1, 0)
-        btn.Position = UDim2.new(0, 120 * (i - 1), 0, 0)
-        btn.BackgroundTransparency = (i == 1) and 0.2 or 1
-        btn.Image = tabIcons[i]
-        btn.ImageColor3 = (i == 1) and Theme.text or Theme.textMuted
-        btn.ScaleType = Enum.ScaleType.Fit
-        btn.BorderSizePixel = 0
-        btn.Parent = tabs
-        tabButtons[t] = btn
-        
-        -- Подпись под иконкой
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 0, 14)
-        label.Position = UDim2.new(0, 0, 1, -14)
-        label.BackgroundTransparency = 1
-        label.Text = name
-        label.TextColor3 = (i == 1) and Theme.text or Theme.textMuted
-        label.TextSize = 9
-        label.Font = Enum.Font.Gotham
-        label.Parent = btn
-        
-        btn.MouseButton1Click:Connect(function()
-            switchTab(t)
-        end)
-        
-        local content = Instance.new("Frame")
-        content.Size = UDim2.new(1, -20, 1, -60)
-        content.Position = UDim2.new(0, 10, 0, 82)
-        content.BackgroundTransparency = 1
-        content.Visible = (i == 1)
-        content.Parent = main
-        tabContents[t] = content
-    end
-    
-    -- Главная вкладка
-    
-    local mainContent = tabContents["main"]
-    
+    -- Статус
     local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1, 0, 0, 24)
+    status.Size = UDim2.new(1, -20, 0, 22)
+    status.Position = UDim2.new(0, 10, 0, 44)
     status.BackgroundTransparency = 1
-    status.Text = "ОТКЛЮЧЕН"
+    status.Text = "> offline"
     status.TextColor3 = Theme.textMuted
-    status.TextSize = 14
-    status.Font = Enum.Font.GothamMedium
+    status.TextSize = 13
+    status.Font = FONT
     status.TextXAlignment = Enum.TextXAlignment.Left
-    status.Parent = mainContent
+    status.Parent = main
     
+    -- Цель
     local targetLabel = Instance.new("TextLabel")
-    targetLabel.Size = UDim2.new(1, 0, 0, 20)
-    targetLabel.Position = UDim2.new(0, 0, 0, 26)
+    targetLabel.Size = UDim2.new(1, -20, 0, 20)
+    targetLabel.Position = UDim2.new(0, 10, 0, 66)
     targetLabel.BackgroundTransparency = 1
-    targetLabel.Text = "ЦЕЛЬ: НЕТ"
+    targetLabel.Text = "> target: none"
     targetLabel.TextColor3 = Theme.textMuted
     targetLabel.TextSize = 12
-    targetLabel.Font = Enum.Font.Gotham
+    targetLabel.Font = FONT
     targetLabel.TextXAlignment = Enum.TextXAlignment.Left
-    targetLabel.Parent = mainContent
+    targetLabel.Parent = main
     
-    local aimLabel = Instance.new("TextLabel")
-    aimLabel.Size = UDim2.new(1, 0, 0, 20)
-    aimLabel.Position = UDim2.new(0, 0, 0, 46)
-    aimLabel.BackgroundTransparency = 1
-    aimLabel.Text = "ЦЕЛЬ: ГОЛОВА"
-    aimLabel.TextColor3 = Theme.textMuted
-    aimLabel.TextSize = 12
-    aimLabel.Font = Enum.Font.Gotham
-    aimLabel.TextXAlignment = Enum.TextXAlignment.Left
-    aimLabel.Parent = mainContent
-    
-    local killsLabel = Instance.new("TextLabel")
-    killsLabel.Size = UDim2.new(1, 0, 0, 20)
-    killsLabel.Position = UDim2.new(0, 0, 0, 66)
-    killsLabel.BackgroundTransparency = 1
-    killsLabel.Text = "УБИЙСТВ: 0"
-    killsLabel.TextColor3 = Theme.textMuted
-    killsLabel.TextSize = 12
-    killsLabel.Font = Enum.Font.Gotham
-    killsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    killsLabel.Parent = mainContent
-    
-    -- Функция создания кнопок
-    local function MakeButton(text, y, col)
+    -- Кнопки
+    local function MakeBtn(text, y, col)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 34)
-        btn.Position = UDim2.new(0, 0, 0, y)
+        btn.Size = UDim2.new(1, -20, 0, 30)
+        btn.Position = UDim2.new(0, 10, 0, y)
         btn.BackgroundColor3 = Theme.surface
-        btn.BackgroundTransparency = 0.5
+        btn.BackgroundTransparency = 0.4
         btn.BorderSizePixel = 0
         btn.Text = text
         btn.TextColor3 = Theme.text
-        btn.TextSize = 13
-        btn.Font = Enum.Font.GothamMedium
-        btn.Parent = mainContent
-        
-        makeCorner(btn, 8)
-        makeStroke(btn, col or Theme.border, 1)
-        
-        local hover = TweenService:Create(btn, TweenInfo.new(0.15), {
-            BackgroundTransparency = 0.2
-        })
-        local leave = TweenService:Create(btn, TweenInfo.new(0.15), {
-            BackgroundTransparency = 0.5
-        })
-        
-        btn.MouseEnter:Connect(function()
-            leave:Cancel()
-            hover:Play()
-        end)
-        btn.MouseLeave:Connect(function()
-            hover:Cancel()
-            leave:Play()
-        end)
-        
+        btn.TextSize = 12
+        btn.Font = FONT
+        btn.Parent = main
+        Round(btn, 6)
         return btn
     end
     
-    -- Кнопки на главной
-    local btnToggle = MakeButton("ВКЛЮЧИТЬ", 92, Theme.accent)
-    local btnAimPart = MakeButton("СМЕНИТЬ ЦЕЛЬ", 132, Theme.accentDim)
-    local btnXRay = MakeButton("X-RAY: ВКЛ", 172, Theme.accentDim)
-    local btnFriend = MakeButton("ДРУЗЬЯ", 212, Theme.greenDim)
-    local btnExit = MakeButton("ВЫХОД", 252, Theme.redDim)
+    local btnToggle = MakeBtn("> start", 94, Theme.green)
+    local btnAim = MakeBtn("> switch: head", 130, Theme.accent)
+    local btnXRay = MakeBtn("> x-ray: on", 166, Theme.accent)
+    local btnFriend = MakeBtn("> friends (0)", 202, Theme.amber)
+    local btnExit = MakeBtn("> exit", 238, Theme.red)
     
-    -- Вкладка друзей
+    -- Консольный вывод
+    local console = Instance.new("Frame")
+    console.Size = UDim2.new(1, -20, 0, 28)
+    console.Position = UDim2.new(0, 10, 0, 276)
+    console.BackgroundColor3 = Theme.surface
+    console.BackgroundTransparency = 0.5
+    console.BorderSizePixel = 0
+    console.Parent = main
+    Round(console, 6)
     
-    local friendsContent = tabContents["friends"]
+    local consoleText = Instance.new("TextLabel")
+    consoleText.Size = UDim2.new(1, -16, 1, 0)
+    consoleText.Position = UDim2.new(0, 8, 0, 0)
+    consoleText.BackgroundTransparency = 1
+    consoleText.Text = "> ready"
+    consoleText.TextColor3 = Theme.textMuted
+    consoleText.TextSize = 11
+    consoleText.Font = FONT
+    consoleText.TextXAlignment = Enum.TextXAlignment.Left
+    consoleText.Parent = console
     
-    local friendList = Instance.new("ScrollingFrame")
-    friendList.Size = UDim2.new(1, 0, 1, 0)
-    friendList.BackgroundTransparency = 1
-    friendList.BorderSizePixel = 0
-    friendList.CanvasSize = UDim2.new(0, 0, 0, 0)
-    friendList.ScrollBarThickness = 3
-    friendList.ScrollBarImageColor3 = Theme.borderHi
-    friendList.ScrollBarImageTransparency = 0.3
-    friendList.Parent = friendsContent
+    -- FOV круг
+    local fov = Instance.new("ImageLabel")
+    fov.Size = UDim2.new(0, Config.FOV * 2, 0, Config.FOV * 2)
+    fov.Position = UDim2.new(0.5, -Config.FOV, 0.5, -Config.FOV)
+    fov.BackgroundTransparency = 1
+    fov.Image = "rbxassetid://4911621264"
+    fov.ImageColor3 = Theme.text
+    fov.ImageTransparency = 0.5
+    fov.Visible = false
+    fov.Parent = gui
     
-    local friendLayout = Instance.new("UIListLayout", friendList)
-    friendLayout.Padding = UDim.new(0, 6)
-    friendLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    -- Прицел
+    local crosshair = Instance.new("Frame")
+    crosshair.Size = UDim2.new(0, 4, 0, 4)
+    crosshair.Position = UDim2.new(0.5, -2, 0.5, -2)
+    crosshair.BackgroundColor3 = Theme.text
+    crosshair.BorderSizePixel = 0
+    crosshair.Visible = false
+    crosshair.Parent = gui
+    Round(crosshair, 999)
     
-    -- Кнопка добавления друга
-    local addFriendBtn = Instance.new("TextButton")
-    addFriendBtn.Size = UDim2.new(1, 0, 0, 34)
-    addFriendBtn.Position = UDim2.new(0, 0, 0, 0)
-    addFriendBtn.BackgroundColor3 = Theme.surface
-    addFriendBtn.BackgroundTransparency = 0.5
-    addFriendBtn.BorderSizePixel = 0
-    addFriendBtn.Text = "➕ ДОБАВИТЬ ДРУГА"
-    addFriendBtn.TextColor3 = Theme.text
-    addFriendBtn.TextSize = 13
-    addFriendBtn.Font = Enum.Font.GothamMedium
-    addFriendBtn.Parent = friendsContent
-    makeCorner(addFriendBtn, 8)
-    makeStroke(addFriendBtn, Theme.greenDim, 1)
+    -- Окно выбора друзей (скрытое)
+    local friendWindow = Instance.new("Frame")
+    friendWindow.Size = UDim2.new(0, 380, 0, 300)
+    friendWindow.Position = UDim2.new(0.5, -190, 0.5, -150)
+    friendWindow.BackgroundColor3 = Theme.bg
+    friendWindow.BackgroundTransparency = 0.05
+    friendWindow.BorderSizePixel = 0
+    friendWindow.ClipsDescendants = true
+    friendWindow.Visible = false
+    friendWindow.Parent = gui
+    Round(friendWindow, 12)
     
-    addFriendBtn.MouseButton1Click:Connect(function()
-        -- Очищаем список
-        for i, child in ipairs(friendList:GetChildren()) do
-            child:Destroy()
+    -- Заголовок окна друзей
+    local friendHeader = Instance.new("Frame")
+    friendHeader.Size = UDim2.new(1, 0, 0, 36)
+    friendHeader.BackgroundColor3 = Theme.surface
+    friendHeader.BackgroundTransparency = 0.5
+    friendHeader.BorderSizePixel = 0
+    friendHeader.Parent = friendWindow
+    Round(friendHeader, 12)
+    
+    local friendTitle = Instance.new("TextLabel")
+    friendTitle.Size = UDim2.new(1, -60, 1, 0)
+    friendTitle.Position = UDim2.new(0, 12, 0, 0)
+    friendTitle.BackgroundTransparency = 1
+    friendTitle.Text = "> friends"
+    friendTitle.TextColor3 = Theme.text
+    friendTitle.TextSize = 14
+    friendTitle.Font = FONT
+    friendTitle.TextXAlignment = Enum.TextXAlignment.Left
+    friendTitle.Parent = friendHeader
+    
+    local friendClose = Instance.new("Frame")
+    friendClose.Size = UDim2.new(0, 12, 0, 12)
+    friendClose.Position = UDim2.new(1, -24, 0.5, -6)
+    friendClose.BackgroundColor3 = Theme.red
+    friendClose.BorderSizePixel = 0
+    friendClose.Parent = friendHeader
+    Round(friendClose, 999)
+    
+    -- Список игроков
+    local playerList = Instance.new("ScrollingFrame")
+    playerList.Size = UDim2.new(1, -16, 1, -50)
+    playerList.Position = UDim2.new(0, 8, 0, 44)
+    playerList.BackgroundTransparency = 1
+    playerList.BorderSizePixel = 0
+    playerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    playerList.ScrollBarThickness = 3
+    playerList.ScrollBarImageColor3 = Theme.border
+    playerList.ScrollBarImageTransparency = 0.3
+    playerList.Parent = friendWindow
+    
+    local playerLayout = Instance.new("UIListLayout")
+    playerLayout.Padding = UDim.new(0, 4)
+    playerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    playerLayout.Parent = playerList
+    
+    -- Функция обновления списка друзей
+    function UI:UpdateFriendList()
+        -- Чистим список
+        for _, child in pairs(playerList:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
         end
         
-        -- Показываем всех игроков для добавления
+        -- Собираем всех игроков
         local players = {}
-        for i, plr in pairs(Players:GetPlayers()) do
-            if plr ~= Player and not isFriend(plr) then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= Player then
                 table.insert(players, plr)
             end
         end
         
         if #players == 0 then
             local empty = Instance.new("TextLabel")
-            empty.Size = UDim2.new(1, 0, 0, 40)
+            empty.Size = UDim2.new(1, 0, 0, 30)
             empty.BackgroundTransparency = 1
-            empty.Text = "Нет доступных игроков"
+            empty.Text = "> no players found"
             empty.TextColor3 = Theme.textMuted
-            empty.TextSize = 14
-            empty.Font = Enum.Font.Gotham
-            empty.Parent = friendList
-            friendList.CanvasSize = UDim2.new(0, 0, 0, 50)
+            empty.TextSize = 12
+            empty.Font = FONT
+            empty.Parent = playerList
+            playerList.CanvasSize = UDim2.new(0, 0, 0, 40)
             return
         end
         
-        for i, plr in ipairs(players) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 44)
-            btn.BackgroundColor3 = Theme.surface
-            btn.BackgroundTransparency = 0.3
-            btn.BorderSizePixel = 0
-            btn.Parent = friendList
-            makeCorner(btn, 8)
+        -- Сортируем по имени
+        table.sort(players, function(a, b) return a.Name < b.Name end)
+        
+        for _, plr in ipairs(players) do
+            local isFriend = IsFriend(plr)
             
-            local avatar = makeAvatar(plr, 34)
-            avatar.Position = UDim2.new(0, 4, 0.5, -17)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, 0, 0, 40)
+            btn.BackgroundColor3 = isFriend and Theme.greenDim or Theme.surface
+            btn.BackgroundTransparency = isFriend and 0.7 or 0.3
+            btn.BorderSizePixel = 0
+            btn.Parent = playerList
+            Round(btn, 6)
+            
+            -- Аватарка
+            local avatar = MakeAvatar(plr, 32)
+            avatar.Position = UDim2.new(0, 4, 0.5, -16)
             avatar.Parent = btn
             
-            local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.new(1, -80, 1, 0)
-            nameLabel.Position = UDim2.new(0, 44, 0, 0)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.Text = plr.Name
-            nameLabel.TextColor3 = Theme.text
-            nameLabel.TextSize = 13
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-            nameLabel.Font = Enum.Font.GothamMedium
-            nameLabel.Parent = btn
+            -- Имя
+            local name = Instance.new("TextLabel")
+            name.Size = UDim2.new(1, -80, 1, 0)
+            name.Position = UDim2.new(0, 42, 0, 0)
+            name.BackgroundTransparency = 1
+            name.Text = plr.Name
+            name.TextColor3 = isFriend and Theme.green or Theme.text
+            name.TextSize = 13
+            name.Font = FONT
+            name.TextXAlignment = Enum.TextXAlignment.Left
+            name.Parent = btn
             
-            -- Кнопка добавления (плюс)
-            local addBtn = Instance.new("ImageButton")
-            addBtn.Size = UDim2.new(0, 30, 0, 30)
-            addBtn.Position = UDim2.new(1, -34, 0.5, -15)
-            addBtn.BackgroundTransparency = 1
-            addBtn.Image = Icons.Add
-            addBtn.ImageColor3 = Theme.green
-            addBtn.ScaleType = Enum.ScaleType.Fit
-            addBtn.Parent = btn
+            -- Статус (друг или нет)
+            local statusIcon = Instance.new("TextLabel")
+            statusIcon.Size = UDim2.new(0, 30, 1, 0)
+            statusIcon.Position = UDim2.new(1, -34, 0, 0)
+            statusIcon.BackgroundTransparency = 1
+            statusIcon.Text = isFriend and "✓" or "+"
+            statusIcon.TextColor3 = isFriend and Theme.green or Theme.textMuted
+            statusIcon.TextSize = 16
+            statusIcon.Font = FONT
+            statusIcon.Parent = btn
             
-            addBtn.MouseButton1Click:Connect(function()
-                table.insert(State.friends, plr)
-                UpdateFriendsList()
-            end)
-        end
-        
-        friendLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            friendList.CanvasSize = UDim2.new(0, 0, 0, friendLayout.AbsoluteContentSize.Y + 10)
-        end)
-        task.wait()
-        friendList.CanvasSize = UDim2.new(0, 0, 0, friendLayout.AbsoluteContentSize.Y + 10)
-    end)
-    
-    -- Обновление списка друзей
-    local function UpdateFriendsList()
-        for i, child in ipairs(friendList:GetChildren()) do
-            child:Destroy()
-        end
-        
-        if #State.friends == 0 then
-            local empty = Instance.new("TextLabel")
-            empty.Size = UDim2.new(1, 0, 0, 40)
-            empty.Position = UDim2.new(0, 0, 0, 0)
-            empty.BackgroundTransparency = 1
-            empty.Text = "Нет добавленных друзей"
-            empty.TextColor3 = Theme.textMuted
-            empty.TextSize = 14
-            empty.Font = Enum.Font.Gotham
-            empty.Parent = friendList
-            friendList.CanvasSize = UDim2.new(0, 0, 0, 50)
-            return
-        end
-        
-        for i, plr in ipairs(State.friends) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 44)
-            btn.BackgroundColor3 = Theme.surface
-            btn.BackgroundTransparency = 0.3
-            btn.BorderSizePixel = 0
-            btn.Parent = friendList
-            makeCorner(btn, 8)
-            
-            local avatar = makeAvatar(plr, 34)
-            avatar.Position = UDim2.new(0, 4, 0.5, -17)
-            avatar.Parent = btn
-            
-            local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.new(1, -80, 1, 0)
-            nameLabel.Position = UDim2.new(0, 44, 0, 0)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.Text = plr.Name
-            nameLabel.TextColor3 = Theme.text
-            nameLabel.TextSize = 13
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-            nameLabel.Font = Enum.Font.GothamMedium
-            nameLabel.Parent = btn
-            
-            -- Галочка (друг)
-            local checkBtn = Instance.new("ImageButton")
-            checkBtn.Size = UDim2.new(0, 30, 0, 30)
-            checkBtn.Position = UDim2.new(1, -34, 0.5, -15)
-            checkBtn.BackgroundTransparency = 1
-            checkBtn.Image = Icons.Check
-            checkBtn.ImageColor3 = Theme.green
-            checkBtn.ScaleType = Enum.ScaleType.Fit
-            checkBtn.Parent = btn
-            
-            -- Кнопка удаления (крест)
-            local removeBtn = Instance.new("ImageButton")
-            removeBtn.Size = UDim2.new(0, 24, 0, 24)
-            removeBtn.Position = UDim2.new(1, -62, 0.5, -12)
-            removeBtn.BackgroundTransparency = 1
-            removeBtn.Image = Icons.Remove
-            removeBtn.ImageColor3 = Theme.red
-            removeBtn.ScaleType = Enum.ScaleType.Fit
-            removeBtn.Parent = btn
-            
-            removeBtn.MouseButton1Click:Connect(function()
-                for j, f in ipairs(State.friends) do
-                    if f == plr then
-                        table.remove(State.friends, j)
-                        UpdateFriendsList()
-                        break
+            -- Клик по кнопке
+            btn.MouseButton1Click:Connect(function()
+                if isFriend then
+                    -- Удаляем из друзей
+                    for i, f in ipairs(State.friends) do
+                        if f == plr then
+                            table.remove(State.friends, i)
+                            break
+                        end
                     end
+                    UI:Log("removed: " .. plr.Name)
+                    UI.btnFriend.Text = "> friends (" .. #State.friends .. ")"
+                    UI:UpdateFriendList()
+                else
+                    -- Добавляем в друзья
+                    table.insert(State.friends, plr)
+                    UI:Log("added: " .. plr.Name)
+                    UI.btnFriend.Text = "> friends (" .. #State.friends .. ")"
+                    UI:UpdateFriendList()
                 end
+            end)
+            
+            -- Ховер эффект
+            local hover = TweenService:Create(btn, TweenInfo.new(0.12), {
+                BackgroundTransparency = isFriend and 0.5 or 0.1
+            })
+            local leave = TweenService:Create(btn, TweenInfo.new(0.12), {
+                BackgroundTransparency = isFriend and 0.7 or 0.3
+            })
+            
+            btn.MouseEnter:Connect(function()
+                leave:Cancel()
+                hover:Play()
+            end)
+            btn.MouseLeave:Connect(function()
+                hover:Cancel()
+                leave:Play()
             end)
         end
         
-        friendLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            friendList.CanvasSize = UDim2.new(0, 0, 0, friendLayout.AbsoluteContentSize.Y + 10)
-        end)
+        -- Обновляем размер скролла
         task.wait()
-        friendList.CanvasSize = UDim2.new(0, 0, 0, friendLayout.AbsoluteContentSize.Y + 10)
+        playerList.CanvasSize = UDim2.new(0, 0, 0, playerLayout.AbsoluteContentSize.Y + 10)
     end
     
-    UpdateFriendsList()
-    
-    -- Вкладка настроек
-    
-    local settingsContent = tabContents["settings"]
-    
-    local settings = {
-        {text = "Показывать FOV", key = "showFOV", default = true},
-        {text = "Сглаживание", key = "smoothness", default = 0.85, min = 0.1, max = 1},
-        {text = "Дистанция", key = "distance", default = 250, min = 50, max = 500},
-    }
-    
-    local settingsY = 0
-    for i, setting in ipairs(settings) do
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, 0, 0, 40)
-        frame.Position = UDim2.new(0, 0, 0, settingsY)
-        frame.BackgroundTransparency = 1
-        frame.Parent = settingsContent
-        
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.6, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text = setting.text
-        label.TextColor3 = Theme.text
-        label.TextSize = 13
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Font = Enum.Font.Gotham
-        label.Parent = frame
-        
-        if setting.key == "showFOV" then
-            local toggle = Instance.new("ImageButton")
-            toggle.Size = UDim2.new(0, 40, 0, 40)
-            toggle.Position = UDim2.new(1, -44, 0.5, -20)
-            toggle.BackgroundTransparency = 1
-            toggle.Image = Config.ShowFOV and Icons.Check or Icons.Close
-            toggle.ImageColor3 = Config.ShowFOV and Theme.green or Theme.red
-            toggle.ScaleType = Enum.ScaleType.Fit
-            toggle.Parent = frame
-            
-            toggle.MouseButton1Click:Connect(function()
-                Config.ShowFOV = not Config.ShowFOV
-                toggle.Image = Config.ShowFOV and Icons.Check or Icons.Close
-                toggle.ImageColor3 = Config.ShowFOV and Theme.green or Theme.red
-                if UI.fovCircle then
-                    UI.fovCircle.Visible = State.enabled and Config.ShowFOV
-                end
-            end)
-        elseif setting.key == "smoothness" then
-            local slider = Instance.new("Frame")
-            slider.Size = UDim2.new(0, 120, 0, 6)
-            slider.Position = UDim2.new(1, -124, 0.5, -3)
-            slider.BackgroundColor3 = Theme.surfaceHi
-            slider.BorderSizePixel = 0
-            slider.Parent = frame
-            makeCorner(slider, 3)
-            
-            local fill = Instance.new("Frame")
-            fill.Size = UDim2.new(Config.Smoothness, 0, 1, 0)
-            fill.BackgroundColor3 = Theme.accent
-            fill.BorderSizePixel = 0
-            fill.Parent = slider
-            makeCorner(fill, 3)
-            
-            local value = Instance.new("TextLabel")
-            value.Size = UDim2.new(0, 40, 1, 0)
-            value.Position = UDim2.new(1, 0, 0, 0)
-            value.BackgroundTransparency = 1
-            value.Text = string.format("%.2f", Config.Smoothness)
-            value.TextColor3 = Theme.textMuted
-            value.TextSize = 11
-            value.Font = Enum.Font.Gotham
-            value.Parent = slider
-        elseif setting.key == "distance" then
-            local slider = Instance.new("Frame")
-            slider.Size = UDim2.new(0, 120, 0, 6)
-            slider.Position = UDim2.new(1, -124, 0.5, -3)
-            slider.BackgroundColor3 = Theme.surfaceHi
-            slider.BorderSizePixel = 0
-            slider.Parent = frame
-            makeCorner(slider, 3)
-            
-            local fill = Instance.new("Frame")
-            fill.Size = UDim2.new((Config.DistanceLimit - 50) / 450, 0, 1, 0)
-            fill.BackgroundColor3 = Theme.accent
-            fill.BorderSizePixel = 0
-            fill.Parent = slider
-            makeCorner(fill, 3)
-            
-            local value = Instance.new("TextLabel")
-            value.Size = UDim2.new(0, 50, 1, 0)
-            value.Position = UDim2.new(1, 0, 0, 0)
-            value.BackgroundTransparency = 1
-            value.Text = tostring(Config.DistanceLimit)
-            value.TextColor3 = Theme.textMuted
-            value.TextSize = 11
-            value.Font = Enum.Font.Gotham
-            value.Parent = slider
-        end
-        
-        settingsY = settingsY + 46
-    end
-    
-    -- FOV круг
-    local fovCircle = Instance.new("ImageLabel")
-    fovCircle.Size = UDim2.new(0, Config.FOV * 2, 0, Config.FOV * 2)
-    fovCircle.Position = UDim2.new(0.5, -Config.FOV, 0.5, -Config.FOV)
-    fovCircle.BackgroundTransparency = 1
-    fovCircle.Image = "rbxassetid://4911621264"
-    fovCircle.ImageColor3 = Theme.text
-    fovCircle.ImageTransparency = 0.4
-    fovCircle.Visible = false
-    fovCircle.Parent = gui
-    
-    -- Прицел
-    local crosshair = Instance.new("Frame")
-    crosshair.Size = UDim2.new(0, 0, 0, 0)
-    crosshair.BackgroundTransparency = 1
-    crosshair.Visible = false
-    crosshair.Parent = gui
-    
-    local function updateCrosshair()
-        local center = getCenter()
-        crosshair.Position = UDim2.fromOffset(center.X, center.Y)
-    end
-    
-    local function makeDot()
-        for i, c in pairs(crosshair:GetChildren()) do c:Destroy() end
-        local dot = Instance.new("Frame")
-        dot.Size = UDim2.new(0, 3, 0, 3)
-        dot.Position = UDim2.new(0.5, -1.5, 0.5, -1.5)
-        dot.BackgroundColor3 = Theme.text
-        dot.BorderSizePixel = 0
-        dot.Parent = crosshair
-        makeCorner(dot, 999)
-    end
-    
-    makeDot()
-    updateCrosshair()
-    
-    Camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateCrosshair)
-    UserInputService.WindowFocused:Connect(updateCrosshair)
+    -- Закрытие окна друзей
+    friendClose.MouseButton1Click:Connect(function()
+        friendWindow.Visible = false
+        State.showFriendSelector = false
+    end)
     
     return {
         gui = gui,
         main = main,
-        header = header,
-        winButtons = winButtons,
-        tabButtons = tabButtons,
-        tabContents = tabContents,
         status = status,
         targetLabel = targetLabel,
-        aimLabel = aimLabel,
-        killsLabel = killsLabel,
+        consoleText = consoleText,
         btnToggle = btnToggle,
-        btnAimPart = btnAimPart,
+        btnAim = btnAim,
         btnXRay = btnXRay,
         btnFriend = btnFriend,
         btnExit = btnExit,
-        fovCircle = fovCircle,
+        closeBtn = closeBtn,
+        maxBtn = maxBtn,
+        minBtn = minBtn,
         crosshair = crosshair,
-        friendList = friendList,
-        updateFriends = UpdateFriendsList,
-        switchTab = switchTab,
-        updateCrosshair = updateCrosshair,
-        addFriendBtn = addFriendBtn,
+        fov = fov,
+        friendWindow = friendWindow,
+        playerList = playerList,
+        friendClose = friendClose,
     }
 end
 
-UI = BuildUI()
+UI = UI:Build()
 
--- Переключение на вкладку друзей
+-- Функция для вывода в консоль
+function UI:Log(msg)
+    if self.consoleText then
+        self.consoleText.Text = "> " .. msg
+    end
+end
+
+-- Показ окна выбора друзей
 local function ShowFriendSelector()
-    if State.destroyed then return end
-    UI.switchTab("friends")
+    State.showFriendSelector = not State.showFriendSelector
+    UI.friendWindow.Visible = State.showFriendSelector
+    
+    if State.showFriendSelector then
+        UI:UpdateFriendList()
+        UI:Log("friends manager opened")
+    else
+        UI:Log("friends manager closed")
+    end
 end
 
 -- Аим логика
@@ -737,51 +492,43 @@ end
 local raycastParams = RaycastParams.new()
 raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
 
-local function updateFilter(char)
+local function UpdateFilter(char)
     if char then
         raycastParams.FilterDescendantsInstances = {char}
     end
 end
 
-updateFilter(Player.Character)
-Player.CharacterAdded:Connect(updateFilter)
+UpdateFilter(Player.Character)
+Player.CharacterAdded:Connect(UpdateFilter)
 
-local function getAimPart(plr)
-    if not plr or not plr.Character or not plr.Character.Parent then return nil end
-    local char = plr.Character
-    local part = char:FindFirstChild(Config.AimPart)
-    if part then return part end
-    part = char:FindFirstChild(Config.BackupPart)
-    if part then return part end
-    return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+local function GetPart(plr)
+    if not plr or not plr.Character then return nil end
+    local c = plr.Character
+    local p = c:FindFirstChild(Config.AimPart)
+    if p then return p end
+    p = c:FindFirstChild(Config.BackupPart)
+    if p then return p end
+    return c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso")
 end
 
-local function getScreenPos(part)
-    if not part or not part.Parent then return nil end
-    local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-    if not onScreen then return nil end
+local function GetScreenPos(part)
+    if not part then return nil end
+    local pos, on = Camera:WorldToViewportPoint(part.Position)
+    if not on then return nil end
     return Vector2.new(pos.X, pos.Y)
 end
 
-local function getVelocity(plr)
-    if not plr or not plr.Character or not plr.Character.Parent then return Vector3.new(0, 0, 0) end
-    local root = plr.Character:FindFirstChild("HumanoidRootPart")
-    if root then return root.AssemblyLinearVelocity end
-    return Vector3.new(0, 0, 0)
-end
-
-local function isVisible(plr)
-    if not plr or not plr.Character or not plr.Character.Parent then return false end
-    if not Camera then return false end
-    if isFriend(plr) then return false end
-    local part = getAimPart(plr)
-    if not part or not part.Parent then return false end
+local function IsVisible(plr)
+    if not plr or not plr.Character then return false end
+    if IsFriend(plr) then return false end
+    local part = GetPart(plr)
+    if not part then return false end
     local origin = Camera.CFrame.Position
-    local targetPos = part.Position
-    local direction = (targetPos - origin).Unit
-    local distance = (targetPos - origin).Magnitude
-    if distance > Config.DistanceLimit then return false end
-    local result = workspace:Raycast(origin, direction * distance, raycastParams)
+    local target = part.Position
+    local dir = (target - origin).Unit
+    local dist = (target - origin).Magnitude
+    if dist > Config.Distance then return false end
+    local result = workspace:Raycast(origin, dir * dist, raycastParams)
     if not result then return true end
     local hit = result.Instance
     local parent = hit.Parent
@@ -792,259 +539,142 @@ local function isVisible(plr)
     return false
 end
 
--- X-Ray хуйня
+-- X-Ray логика
 
-local XRAY_PARTS = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "LeftFoot", "RightFoot", "LeftHand", "RightHand"}
+local XRayParts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
 
-local function getCharParts(plr)
-    if not plr or not plr.Character or not plr.Character.Parent then return {} end
-    if isFriend(plr) then return {} end
-    local cached = XRay.cache[plr]
-    if cached and XRay.cacheTimers[plr] and os.clock() - XRay.cacheTimers[plr] < XRay.CACHE_DURATION then
-        return cached
-    end
-    local char = plr.Character
-    local parts = {}
-    for i, name in ipairs(XRAY_PARTS) do
-        local part = char:FindFirstChild(name)
-        if part and part.Parent then
-            table.insert(parts, part)
-        end
-    end
-    if #parts < 3 then
-        for i, child in ipairs(char:GetDescendants()) do
-            if child:IsA("BasePart") and child.Parent then
-                table.insert(parts, child)
-            end
-        end
-    end
-    XRay.cache[plr] = parts
-    XRay.cacheTimers[plr] = os.clock()
-    return parts
-end
-
-local function clearCache(plr)
-    if plr then
-        XRay.cache[plr] = nil
-        XRay.cacheTimers[plr] = nil
-    else
-        XRay.cache = {}
-        XRay.cacheTimers = {}
-    end
-end
-
-local function removeBox(plr)
-    local data = XRay.boxes[plr]
-    if data then
-        if data.container and data.container.Parent then
-            data.container:Destroy()
-        end
-        XRay.boxes[plr] = nil
-    end
-end
-
-local function clearAllBoxes()
-    for plr in pairs(XRay.boxes) do
-        removeBox(plr)
-    end
-    XRay.boxes = {}
-end
-
-local function createBox(plr)
+local function CreateBox(plr)
     if XRay.boxes[plr] then return end
-    if isFriend(plr) then return end
-    if not XRay.container or not XRay.container.Parent then return end
+    if IsFriend(plr) then return end
+    if not XRay.container then return end
     
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(0, 40, 0, 60)
-    container.BackgroundTransparency = 1
-    container.Parent = XRay.container
+    local box = Instance.new("Frame")
+    box.Size = UDim2.new(0, 30, 0, 40)
+    box.BackgroundTransparency = 1
+    box.Parent = XRay.container
     
     local border = Instance.new("Frame")
     border.Size = UDim2.new(1, 0, 1, 0)
-    border.BackgroundTransparency = 0.7
+    border.BackgroundTransparency = 0.6
     border.BackgroundColor3 = Color3.fromHSV(0, 1, 1)
     border.BorderSizePixel = 0
-    border.Parent = container
-    makeCorner(border, 4)
+    border.Parent = box
+    Round(border, 3)
     
     local outline = Instance.new("Frame")
-    outline.Size = UDim2.new(1, 0, 1, 0)
-    outline.Position = UDim2.new(0, 1, 0, 1)
     outline.Size = UDim2.new(1, -2, 1, -2)
+    outline.Position = UDim2.new(0, 1, 0, 1)
     outline.BackgroundTransparency = 1
-    outline.BorderSizePixel = 2
+    outline.BorderSizePixel = 1
     outline.BorderColor3 = Color3.fromHSV(0, 1, 1)
     outline.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    outline.BackgroundTransparency = 0.7
-    outline.Parent = container
-    makeCorner(outline, 3)
+    outline.BackgroundTransparency = 0.5
+    outline.Parent = box
+    Round(outline, 2)
     
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0, 16)
-    nameLabel.Position = UDim2.new(0, 0, 1, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = plr.Name
-    nameLabel.TextColor3 = Color3.fromHSV(0, 1, 1)
-    nameLabel.TextSize = 11
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextStrokeTransparency = 0.2
-    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    nameLabel.Parent = container
+    local name = Instance.new("TextLabel")
+    name.Size = UDim2.new(1, 0, 0, 14)
+    name.Position = UDim2.new(0, 0, 1, 0)
+    name.BackgroundTransparency = 1
+    name.Text = plr.Name
+    name.TextColor3 = Color3.fromHSV(0, 1, 1)
+    name.TextSize = 9
+    name.Font = FONT
+    name.TextStrokeTransparency = 0.2
+    name.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    name.Parent = box
     
     XRay.boxes[plr] = {
-        container = container,
+        box = box,
         border = border,
         outline = outline,
-        name = nameLabel,
+        name = name,
     }
 end
 
-local function updateBox(plr, hue)
+local function UpdateBox(plr, hue)
     local data = XRay.boxes[plr]
     if not data then return end
-    if not data.container or not data.container.Parent then
+    if not data.box or not data.box.Parent then
         XRay.boxes[plr] = nil
         return
     end
-    if not plr or not plr.Character or not plr.Character.Parent then
-        removeBox(plr)
+    if not plr or not plr.Character then
+        if data.box then data.box:Destroy() end
+        XRay.boxes[plr] = nil
         return
     end
-    if not Camera then return end
     
     local color = Color3.fromHSV(hue, 1, 1)
-    if data.border then data.border.BackgroundColor3 = color end
-    if data.outline then data.outline.BorderColor3 = color end
-    if data.name then data.name.TextColor3 = color end
+    data.border.BackgroundColor3 = color
+    data.outline.BorderColor3 = color
+    data.name.TextColor3 = color
     
-    local parts = getCharParts(plr)
+    local parts = {}
+    for _, name in ipairs(XRayParts) do
+        local p = plr.Character:FindFirstChild(name)
+        if p then table.insert(parts, p) end
+    end
+    
     if #parts == 0 then
-        data.container.Visible = false
+        data.box.Visible = false
         return
     end
     
-    local minX, maxX, minY, maxY = nil, nil, nil, nil
-    for i, part in ipairs(parts) do
-        if part and part.Parent then
-            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-            if onScreen then
-                if minX == nil then
-                    minX, maxX = pos.X, pos.X
-                    minY, maxY = pos.Y, pos.Y
-                else
-                    if pos.X < minX then minX = pos.X end
-                    if pos.X > maxX then maxX = pos.X end
-                    if pos.Y < minY then minY = pos.Y end
-                    if pos.Y > maxY then maxY = pos.Y end
-                end
+    local minX, maxX, minY, maxY
+    for _, p in ipairs(parts) do
+        local pos, on = Camera:WorldToViewportPoint(p.Position)
+        if on then
+            if not minX then
+                minX, maxX = pos.X, pos.X
+                minY, maxY = pos.Y, pos.Y
+            else
+                if pos.X < minX then minX = pos.X end
+                if pos.X > maxX then maxX = pos.X end
+                if pos.Y < minY then minY = pos.Y end
+                if pos.Y > maxY then maxY = pos.Y end
             end
         end
     end
     
-    if minX == nil then
-        data.container.Visible = false
+    if not minX then
+        data.box.Visible = false
         return
     end
     
-    local padding = 4
-    local width = maxX - minX + padding * 2
-    local height = maxY - minY + padding * 2
-    width = math.max(width, 20)
-    height = math.max(height, 30)
+    local pad = 4
+    local w = maxX - minX + pad * 2
+    local h = maxY - minY + pad * 2
+    w = math.max(w, 16)
+    h = math.max(h, 24)
     
-    data.container.Position = UDim2.new(0, minX - padding, 0, minY - padding)
-    data.container.Size = UDim2.new(0, width, 0, height)
-    data.container.Visible = true
+    data.box.Position = UDim2.new(0, minX - pad, 0, minY - pad)
+    data.box.Size = UDim2.new(0, w, 0, h)
+    data.box.Visible = true
 end
 
-local function updateXRay(dt)
-    if State.destroyed then return end
-    if not XRay.enabled then
-        clearAllBoxes()
-        return
-    end
-    
-    State.hue = (State.hue + dt * 0.2) % 1
-    State.xrayTimer = State.xrayTimer + dt
-    local shouldUpdate = State.xrayTimer >= Config.XRayUpdateInterval
-    if shouldUpdate then State.xrayTimer = 0 end
-    
-    for plr, data in pairs(XRay.boxes) do
-        if data and data.container and data.container.Parent then
-            local color = Color3.fromHSV(State.hue, 1, 1)
-            if data.border then data.border.BackgroundColor3 = color end
-            if data.outline then data.outline.BorderColor3 = color end
-            if data.name then data.name.TextColor3 = color end
-        end
-    end
-    
-    if not shouldUpdate then return end
-    
-    for plr in pairs(XRay.boxes) do
-        if not plr or not plr.Parent or not isAlive(plr) then
-            removeBox(plr)
-        end
-    end
-    
-    for i, plr in pairs(Players:GetPlayers()) do
-        if plr ~= Player and plr.Parent and isAlive(plr) then
-            createBox(plr)
-            updateBox(plr, State.hue)
-        end
-    end
-end
+-- Поиск цели
 
-local function updateTargetCF(plr)
-    if not plr or not isAlive(plr) then return end
-    if not Camera then return end
-    
-    local part = getAimPart(plr)
-    if not part or not part.Parent then return end
-    
-    local pos = part.Position
-    local vel = getVelocity(plr)
-    local distance = (pos - Camera.CFrame.Position).Magnitude
-    local targetPos = pos
-    
-    if vel.Magnitude >= 0.1 then
-        local flyTime = distance / Config.BulletSpeed
-        local predTime = flyTime * Config.PredictionStrength
-        targetPos = pos + vel * predTime
-    end
-    
-    State.targetCF = CFrame.lookAt(Camera.CFrame.Position, targetPos)
-end
-
-local function findBestTarget()
-    if not Camera or not Player.Character or not Player.Character.Parent then return nil end
-    
-    local center = getCenter()
+local function FindTarget()
+    if not Camera then return nil end
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local best = nil
     local bestDist = math.huge
     local fovSq = Config.FOV ^ 2
-    local camPos = Camera.CFrame.Position
-    local candidates = {}
     
-    for i, plr in pairs(Players:GetPlayers()) do
-        if plr ~= Player and plr.Parent and isAlive(plr) and not isFriend(plr) then
-            local part = getAimPart(plr)
-            if part and part.Parent then
-                local screenPos = getScreenPos(part)
-                if screenPos then
-                    local dx = screenPos.X - center.X
-                    local dy = screenPos.Y - center.Y
-                    local dist = dx*dx + dy*dy
-                    if dist < fovSq then
-                        local offset = part.Position - camPos
-                        local worldDistSq = offset:Dot(offset)
-                        if worldDistSq <= DIST_LIMIT_SQ then
-                            table.insert(candidates, {
-                                player = plr,
-                                part = part,
-                                screenPos = screenPos,
-                                dist = dist,
-                            })
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= Player and IsAlive(plr) and not IsFriend(plr) then
+            local part = GetPart(plr)
+            if part then
+                local pos = GetScreenPos(part)
+                if pos then
+                    local dx = pos.X - center.X
+                    local dy = pos.Y - center.Y
+                    local d = dx*dx + dy*dy
+                    if d < fovSq and d < bestDist then
+                        if IsVisible(plr) then
+                            best = plr
+                            bestDist = d
                         end
                     end
                 end
@@ -1052,113 +682,89 @@ local function findBestTarget()
         end
     end
     
-    for j, cand in ipairs(candidates) do
-        if isVisible(cand.player) then
-            if cand.dist < bestDist then
-                best = cand.player
-                bestDist = cand.dist
+    return best
+end
+
+-- Основной цикл
+
+local function Update(dt)
+    if not Camera then return end
+    
+    -- X-Ray обновление
+    if XRay.enabled then
+        State.hue = (State.hue + dt * 0.15) % 1
+        State.xrayTimer = State.xrayTimer + dt
+        
+        if State.xrayTimer >= 0.03 then
+            State.xrayTimer = 0
+            
+            -- Чистим мёртвых
+            for plr in pairs(XRay.boxes) do
+                if not plr or not plr.Parent or not IsAlive(plr) or IsFriend(plr) then
+                    if XRay.boxes[plr] and XRay.boxes[plr].box then
+                        XRay.boxes[plr].box:Destroy()
+                    end
+                    XRay.boxes[plr] = nil
+                end
+            end
+            
+            -- Создаём новые
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= Player and IsAlive(plr) and not IsFriend(plr) then
+                    CreateBox(plr)
+                    UpdateBox(plr, State.hue)
+                end
             end
         end
     end
     
-    return best
-end
-
-local function isTargetInFOV(plr)
-    if not plr or not plr.Character or not plr.Character.Parent then return false end
-    if not Camera then return false end
-    if isFriend(plr) then return false end
-    
-    local part = getAimPart(plr)
-    if not part or not part.Parent then return false end
-    
-    local screenPos = getScreenPos(part)
-    if not screenPos then return false end
-    
-    local center = getCenter()
-    local dx = screenPos.X - center.X
-    local dy = screenPos.Y - center.Y
-    local dist = dx*dx + dy*dy
-    
-    return dist < Config.FOV ^ 2
-end
-
-local function processAim(dt)
-    if State.destroyed then return end
-    if not Camera then return end
-    
-    updateXRay(dt)
-    
     if not State.enabled then return end
     
+    -- Аим логика
     State.searchTimer = State.searchTimer + dt
     
-    if State.target and State.target.Parent and isAlive(State.target) and not isFriend(State.target) then
-        local part = getAimPart(State.target)
-        local visible = part and part.Parent and isVisible(State.target)
-        local inFOV = isTargetInFOV(State.target)
-        
-        if part and visible and inFOV then
+    if State.target and IsAlive(State.target) and not IsFriend(State.target) then
+        local part = GetPart(State.target)
+        if part and IsVisible(State.target) then
             State.lostTimer = 0
-            updateTargetCF(State.target)
+            local pos = part.Position
+            State.targetCF = CFrame.lookAt(Camera.CFrame.Position, pos)
             
             if State.targetCF then
-                if State.smoothCF then
-                    State.smoothCF = State.smoothCF:Lerp(State.targetCF, Config.Smoothness)
-                else
-                    State.smoothCF = State.targetCF
-                end
-                
-                if Camera and State.smoothCF then
-                    Camera.CFrame = State.smoothCF
-                end
+                State.smoothCF = State.smoothCF and State.smoothCF:Lerp(State.targetCF, Config.Smoothness) or State.targetCF
+                Camera.CFrame = State.smoothCF
             end
             
-            if UI.status then
-                UI.status.Text = "ЗАХВАТ: " .. State.target.Name
-                UI.status.TextColor3 = Theme.green
-            end
-            if UI.targetLabel then
-                UI.targetLabel.Text = "ЦЕЛЬ: " .. State.target.Name
-                UI.targetLabel.TextColor3 = Theme.green
-            end
+            UI.status.Text = "> locked: " .. State.target.Name
+            UI.status.TextColor3 = Theme.green
+            UI.targetLabel.Text = "> target: " .. State.target.Name
+            UI.targetLabel.TextColor3 = Theme.green
             return
         end
         
         State.lostTimer = State.lostTimer + dt
-        if State.lostTimer > Config.LostTimeout then
+        if State.lostTimer > 0.15 then
             State.target = nil
             State.targetCF = nil
             State.smoothCF = nil
         end
     end
     
-    if State.searchTimer < Config.SearchInterval then return end
+    if State.searchTimer < 0.05 then return end
     State.searchTimer = 0
     
-    local newTarget = findBestTarget()
+    local newTarget = FindTarget()
     if newTarget then
         State.target = newTarget
         State.lostTimer = 0
-        State.smoothCF = nil
         State.targetCF = nil
-        updateTargetCF(newTarget)
+        State.smoothCF = nil
         
-        if State.targetCF then
-            State.smoothCF = State.targetCF
-            if Camera then
-                Camera.CFrame = State.smoothCF
-            end
-        end
-        
-        if UI.status then
-            UI.status.Text = "ЗАХВАТ: " .. newTarget.Name
-            UI.status.TextColor3 = Theme.green
-        end
-        if UI.targetLabel then
-            UI.targetLabel.Text = "ЦЕЛЬ: " .. newTarget.Name
-            UI.targetLabel.TextColor3 = Theme.green
-        end
+        UI.status.Text = "> locked: " .. newTarget.Name
+        UI.status.TextColor3 = Theme.green
+        UI.targetLabel.Text = "> target: " .. newTarget.Name
+        UI.targetLabel.TextColor3 = Theme.green
+        UI:Log("target: " .. newTarget.Name)
     else
         if State.target then
             State.target = nil
@@ -1166,262 +772,152 @@ local function processAim(dt)
             State.smoothCF = nil
         end
         
-        if UI.status then
-            UI.status.Text = "НЕТ ЦЕЛИ"
-            UI.status.TextColor3 = Theme.amber
-        end
-        if UI.targetLabel then
-            UI.targetLabel.Text = "ПОИСК..."
-            UI.targetLabel.TextColor3 = Theme.amber
-        end
+        UI.status.Text = "> searching..."
+        UI.status.TextColor3 = Theme.amber
+        UI.targetLabel.Text = "> target: none"
+        UI.targetLabel.TextColor3 = Theme.textMuted
     end
 end
 
-local function toggleAim()
-    if State.destroyed then return end
-    
+-- Обработчики событий
+
+local function ToggleAim()
     State.enabled = not State.enabled
     
     if State.enabled then
-        local target = findBestTarget()
-        if target then
-            State.target = target
-            State.lostTimer = 0
-            State.targetCF = nil
-            State.smoothCF = nil
-            State.searchTimer = 0
-            State.xrayTimer = 0
-            updateTargetCF(target)
-            
-            if State.targetCF and Camera then
-                State.smoothCF = State.targetCF
-                Camera.CFrame = State.smoothCF
-            end
-            
-            if UI.status then
-                UI.status.Text = "ЗАХВАТ: " .. target.Name
-                UI.status.TextColor3 = Theme.green
-            end
-            if UI.targetLabel then
-                UI.targetLabel.Text = "ЦЕЛЬ: " .. target.Name
-                UI.targetLabel.TextColor3 = Theme.green
-            end
-        else
-            State.target = nil
-            if UI.status then
-                UI.status.Text = "НЕТ ЦЕЛИ"
-                UI.status.TextColor3 = Theme.amber
-            end
-            if UI.targetLabel then
-                UI.targetLabel.Text = "ПОИСК..."
-                UI.targetLabel.TextColor3 = Theme.amber
-            end
-        end
-        
-        UI.btnToggle.Text = "ВЫКЛЮЧИТЬ"
-        UI.fovCircle.Visible = Config.ShowFOV
+        UI.btnToggle.Text = "> stop"
+        UI.btnToggle.TextColor3 = Theme.red
+        UI.status.Text = "> active"
+        UI.status.TextColor3 = Theme.green
         UI.crosshair.Visible = true
+        UI.fov.Visible = true
+        UI:Log("aim started")
         
-        if not XRay.container or not XRay.container.Parent then
+        if not XRay.container then
             XRay.container = Instance.new("Folder")
             XRay.container.Name = "XRay"
             XRay.container.Parent = UI.gui
         end
     else
+        UI.btnToggle.Text = "> start"
+        UI.btnToggle.TextColor3 = Theme.green
+        UI.status.Text = "> offline"
+        UI.status.TextColor3 = Theme.textMuted
+        UI.targetLabel.Text = "> target: none"
+        UI.targetLabel.TextColor3 = Theme.textMuted
+        UI.crosshair.Visible = false
+        UI.fov.Visible = false
+        UI:Log("aim stopped")
+        
         State.target = nil
         State.targetCF = nil
         State.smoothCF = nil
-        State.lostTimer = 0
-        State.searchTimer = 0
-        State.xrayTimer = 0
-        State.killCount = 0
         
-        UI.status.Text = "ОТКЛЮЧЕН"
-        UI.status.TextColor3 = Theme.textMuted
-        UI.targetLabel.Text = "ЦЕЛЬ: НЕТ"
-        UI.targetLabel.TextColor3 = Theme.textMuted
-        UI.killsLabel.Text = "УБИЙСТВ: 0"
-        UI.btnToggle.Text = "ВКЛЮЧИТЬ"
-        UI.fovCircle.Visible = false
-        UI.crosshair.Visible = false
-        
-        clearAllBoxes()
-        clearCache()
-        if XRay.container and XRay.container.Parent then
+        for plr in pairs(XRay.boxes) do
+            if XRay.boxes[plr] and XRay.boxes[plr].box then
+                XRay.boxes[plr].box:Destroy()
+            end
+            XRay.boxes[plr] = nil
+        end
+        if XRay.container then
             XRay.container:Destroy()
             XRay.container = nil
         end
     end
 end
 
-local function switchAimPart()
-    if State.destroyed then return end
-    
+local function SwitchAim()
     if Config.AimPart == "Head" then
         Config.AimPart = "HumanoidRootPart"
         Config.BackupPart = "Torso"
-        UI.aimLabel.Text = "ЦЕЛЬ: ТЕЛО"
-        UI.btnAimPart.Text = "ЦЕЛЬ: ГОЛОВА"
+        UI.btnAim.Text = "> switch: body"
+        UI:Log("aim: body")
     else
         Config.AimPart = "Head"
         Config.BackupPart = "UpperTorso"
-        UI.aimLabel.Text = "ЦЕЛЬ: ГОЛОВА"
-        UI.btnAimPart.Text = "ЦЕЛЬ: ТЕЛО"
+        UI.btnAim.Text = "> switch: head"
+        UI:Log("aim: head")
     end
 end
 
-local function toggleXRay()
-    if State.destroyed then return end
-    
+local function ToggleXRay()
     XRay.enabled = not XRay.enabled
-    UI.btnXRay.Text = XRay.enabled and "X-RAY: ВКЛ" or "X-RAY: ВЫКЛ"
+    UI.btnXRay.Text = XRay.enabled and "> x-ray: on" or "> x-ray: off"
+    UI:Log("x-ray: " .. (XRay.enabled and "on" or "off"))
     
     if not XRay.enabled then
-        clearAllBoxes()
-        clearCache()
-        if XRay.container and XRay.container.Parent then
+        for plr in pairs(XRay.boxes) do
+            if XRay.boxes[plr] and XRay.boxes[plr].box then
+                XRay.boxes[plr].box:Destroy()
+            end
+            XRay.boxes[plr] = nil
+        end
+        if XRay.container then
             XRay.container:Destroy()
             XRay.container = nil
         end
-    elseif not XRay.container or not XRay.container.Parent then
+    elseif not XRay.container then
         XRay.container = Instance.new("Folder")
         XRay.container.Name = "XRay"
         XRay.container.Parent = UI.gui
     end
 end
 
-local connections = {}
+-- Подключение событий
 
-local function connect(obj, event, callback)
-    local conn
-    if type(obj) == "string" then
-        conn = event:Connect(callback)
-    else
-        conn = obj[event]:Connect(callback)
-    end
-    table.insert(connections, conn)
-    return conn
-end
+UI.btnToggle.MouseButton1Click:Connect(ToggleAim)
+UI.btnAim.MouseButton1Click:Connect(SwitchAim)
+UI.btnXRay.MouseButton1Click:Connect(ToggleXRay)
+UI.btnFriend.MouseButton1Click:Connect(ShowFriendSelector)
 
-connect(UI.btnToggle, "MouseButton1Click", toggleAim)
-connect(UI.btnAimPart, "MouseButton1Click", switchAimPart)
-connect(UI.btnXRay, "MouseButton1Click", toggleXRay)
-connect(UI.btnFriend, "MouseButton1Click", ShowFriendSelector)
-
-connect(UI.winButtons.minimize, "MouseButton1Click", function()
-    State.minimized = not State.minimized
-    if State.minimized then
-        UI.main:TweenSize(UDim2.new(0, 200, 0, 32), "Out", "Quad", 0.3, true)
-        for i, child in ipairs(UI.main:GetChildren()) do
-            if child:IsA("TextLabel") or (child:IsA("TextButton") and child ~= UI.header) or child:IsA("Frame") then
-                child.Visible = false
-            end
-        end
-        UI.winButtons.minimize.Image = Icons.Maximize
-    else
-        UI.main:TweenSize(UDim2.new(0, 480, 0, 420), "Out", "Quad", 0.3, true)
-        for i, child in ipairs(UI.main:GetChildren()) do
-            child.Visible = true
-        end
-        UI.winButtons.minimize.Image = Icons.Minimize
-    end
+UI.closeBtn.MouseButton1Click:Connect(function()
+    UI.gui:Destroy()
 end)
 
-connect(UI.winButtons.maximize, "MouseButton1Click", function()
-    State.maximized = not State.maximized
-    if State.maximized then
-        UI.main:TweenSize(UDim2.new(0, 600, 0, 500), "Out", "Quad", 0.3, true)
-        UI.main:TweenPosition(UDim2.new(0.5, -300, 0.5, -250), "Out", "Quad", 0.3, true)
-        UI.winButtons.maximize.Image = Icons.Minimize
-    else
-        UI.main:TweenSize(UDim2.new(0, 480, 0, 420), "Out", "Quad", 0.3, true)
-        UI.main:TweenPosition(UDim2.new(0.5, -240, 0.5, -210), "Out", "Quad", 0.3, true)
-        UI.winButtons.maximize.Image = Icons.Maximize
-    end
+UI.minBtn.MouseButton1Click:Connect(function()
+    local state = UI.main.Visible
+    UI.main.Visible = not state
+    UI:Log(state and "hidden" or "shown")
 end)
 
-local keyConn = UserInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end
-    if State.destroyed then return end
-    
+UI.maxBtn.MouseButton1Click:Connect(function()
+    UI:Log("maximize not implemented")
+end)
+
+-- Клавиши
+UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.One then
-        toggleAim()
+        ToggleAim()
     elseif input.KeyCode == Enum.KeyCode.Two then
-        switchAimPart()
+        SwitchAim()
     elseif input.KeyCode == Enum.KeyCode.Three then
-        toggleXRay()
+        ToggleXRay()
     elseif input.KeyCode == Enum.KeyCode.Four then
         ShowFriendSelector()
     end
 end)
-table.insert(connections, keyConn)
 
-Players.PlayerRemoving:Connect(function(plr)
-    removeBox(plr)
-    clearCache(plr)
-    if State.target == plr then
-        State.target = nil
-        State.targetCF = nil
-        State.smoothCF = nil
-    end
-end)
-
-for i, plr in pairs(Players:GetPlayers()) do
-    if plr ~= Player then
-        plr.CharacterAdded:Connect(function()
-            clearCache(plr)
-        end)
-        plr.CharacterRemoving:Connect(function()
-            clearCache(plr)
-        end)
-    end
+-- Хуйня для очистки
+local function Cleanup()
+    UI.gui:Destroy()
+    if XRay.container then XRay.container:Destroy() end
 end
 
-local function cleanup()
-    if State.cleaned then return end
-    State.cleaned = true
-    State.destroyed = true
-    
-    for i, conn in ipairs(connections) do
-        if conn and conn.Disconnect then
-            pcall(conn.Disconnect, conn)
-        end
-    end
-    connections = {}
-    
-    if UI.gui and UI.gui.Parent then
-        pcall(function() UI.gui:Destroy() end)
-    end
-    if XRay.container and XRay.container.Parent then
-        pcall(function() XRay.container:Destroy() end)
-        XRay.container = nil
-    end
-    
-    clearAllBoxes()
-    clearCache()
-    State.enabled = false
-    State.target = nil
-    State.targetCF = nil
-    State.smoothCF = nil
-end
+UI.btnExit.MouseButton1Click:Connect(Cleanup)
 
-connect(UI.winButtons.close, "MouseButton1Click", cleanup)
-connect(UI.btnExit, "MouseButton1Click", cleanup)
+-- Обновляем список друзей при загрузке
+UI:UpdateFriendList()
+UI.btnFriend.Text = "> friends (" .. #State.friends .. ")"
 
-local renderConn = RunService.RenderStepped:Connect(function(dt)
-    if State.destroyed then return end
-    pcall(processAim, dt)
-end)
-table.insert(connections, renderConn)
-
+-- Уведомление
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "NOVA v2.54",
-    Text = "1 - Вкл/Выкл | 2 - Сменить цель | 3 - X-Ray | 4 - Друзья",
-    Duration = 5
+    Title = "Nova v2.54",
+    Text = "1 - start/stop | 2 - switch aim | 3 - x-ray | 4 - friends",
+    Duration = 4
 })
 
-print("NOVA v2.54 ЗАГРУЖЕНА")
-print("1 - Вкл/Выкл")
-print("2 - Сменить цель (ГОЛОВА ↔ ТЕЛО)")
-print("3 - Вкл/Выкл X-RAY")
-print("4 - Добавить/Удалить друга")
+-- Основной циклRunService.RenderStepped:Connect(function(dt)
+    pcall(Update, dt)
+end)
+
+UI:Log("ready! press 4 or click friends button")
