@@ -1,6 +1,5 @@
 --==================================================
--- NOVA UI SYSTEM v4.0
--- GUI CORE + AIM + XRAY + FRIENDS
+-- NOVA UI SYSTEM v4.1 FIXED
 --==================================================
 
 local Players = game:GetService("Players")
@@ -30,7 +29,7 @@ Gui.Parent = PlayerGui
 -- COLORS
 --==================================================
 
-local Colors = {
+local C = {
     Black = Color3.fromRGB(5,5,5),
     Panel = Color3.fromRGB(15,15,15),
     Dark = Color3.fromRGB(22,22,22),
@@ -42,7 +41,7 @@ local Colors = {
 }
 
 --==================================================
--- STATE & CONFIG
+-- STATE
 --==================================================
 
 local State = {
@@ -58,7 +57,12 @@ local State = {
     xrayTimer = 0,
     currentTab = "software",
     isFullscreen = false,
+    readyProcessed = false,
 }
+
+--==================================================
+-- CONFIG
+--==================================================
 
 local Config = {
     AimPart = "Head",
@@ -92,14 +96,14 @@ end
 
 local Loader = Instance.new("Frame")
 Loader.Size = UDim2.fromScale(1,1)
-Loader.BackgroundColor3 = Colors.Black
+Loader.BackgroundColor3 = C.Black
 Loader.ZIndex = 100
 Loader.Parent = Gui
 
 local GlowOverlay = Instance.new("Frame")
 GlowOverlay.Size = UDim2.fromScale(1,1)
 GlowOverlay.BackgroundTransparency = 1
-GlowOverlay.BackgroundColor3 = Colors.Green
+GlowOverlay.BackgroundColor3 = C.Green
 GlowOverlay.ZIndex = 101
 GlowOverlay.Parent = Loader
 
@@ -107,7 +111,7 @@ local Terminal = Instance.new("TextLabel")
 Terminal.Size = UDim2.new(0.8,0,0.4,0)
 Terminal.Position = UDim2.new(0.1,0,0.15,0)
 Terminal.BackgroundTransparency = 1
-Terminal.TextColor3 = Colors.Green
+Terminal.TextColor3 = C.Green
 Terminal.Font = Enum.Font.Code
 Terminal.TextSize = 20
 Terminal.TextXAlignment = Enum.TextXAlignment.Left
@@ -116,7 +120,7 @@ Terminal.ZIndex = 110
 Terminal.Parent = Loader
 
 --==================================================
--- PARTICLES (RenderStepped)
+-- PARTICLES (Heartbeat)
 --==================================================
 
 local Particles = {}
@@ -131,7 +135,7 @@ for i = 1,40 do
     local size = math.random(2,4)
     p.Size = UDim2.fromOffset(size,size)
     p.Position = UDim2.fromScale(math.random(), math.random())
-    p.BackgroundColor3 = Colors.Green
+    p.BackgroundColor3 = C.Green
     p.BackgroundTransparency = 0.3 + math.random() * 0.3
     p.ZIndex = 106
     Corner(p,10)
@@ -139,21 +143,21 @@ for i = 1,40 do
     
     table.insert(Particles, {
         frame = p,
-        speedX = (math.random() - 0.5) * 0.005,
-        speedY = (math.random() - 0.5) * 0.005,
+        speedX = (math.random() - 0.5) * 0.008,
+        speedY = (math.random() - 0.5) * 0.008,
         phase = math.random() * 2 * math.pi,
         startX = p.Position.X.Scale,
         startY = p.Position.Y.Scale,
-        transSpeed = 0.002 + math.random() * 0.003,
+        transSpeed = 0.1 + math.random() * 0.2,
     })
 end
 
 local function UpdateParticles(dt)
+    local time = os.clock()
     for _, data in ipairs(Particles) do
         if data.frame and data.frame.Parent then
-            local time = os.clock()
-            local offsetX = math.sin(time * 0.3 + data.phase) * data.speedX * 10
-            local offsetY = math.cos(time * 0.5 + data.phase) * data.speedY * 10
+            local offsetX = math.sin(time * 0.3 + data.phase) * data.speedX * 12
+            local offsetY = math.cos(time * 0.5 + data.phase) * data.speedY * 12
             data.frame.Position = UDim2.new(
                 data.startX + offsetX,
                 0,
@@ -190,6 +194,8 @@ local function TypeLine(text)
     end
 end
 
+local bootComplete = false
+
 task.spawn(function()
     local lines = {
         "$ NOVA SYSTEM BOOT",
@@ -206,15 +212,16 @@ task.spawn(function()
         TypeLine(v)
         task.wait(0.25)
     end
+    bootComplete = true
 end)
 
 --==================================================
--- READY INPUT (FIXED)
+-- READY INPUT
 --==================================================
 
 local ReadyFrame = Instance.new("Frame")
 ReadyFrame.Size = UDim2.new(0.45,0,0,45)
-ReadyFrame.Position = UDim2.new(0.1,0,0.68,0)
+ReadyFrame.Position = UDim2.new(0.1,0,0.7,0)
 ReadyFrame.BackgroundTransparency = 1
 ReadyFrame.ZIndex = 150
 ReadyFrame.Visible = false
@@ -224,7 +231,7 @@ local Prefix = Instance.new("TextLabel")
 Prefix.Size = UDim2.new(0,35,1,0)
 Prefix.BackgroundTransparency = 1
 Prefix.Text = "~$"
-Prefix.TextColor3 = Colors.Green
+Prefix.TextColor3 = C.Green
 Prefix.Font = Enum.Font.Code
 Prefix.TextSize = 22
 Prefix.TextXAlignment = Enum.TextXAlignment.Left
@@ -237,16 +244,32 @@ InputLine.Position = UDim2.new(0,40,0,0)
 InputLine.BackgroundTransparency = 1
 InputLine.Text = ""
 InputLine.PlaceholderText = " type y or n..."
-InputLine.PlaceholderColor3 = Colors.Gray
-InputLine.TextColor3 = Colors.Green
+InputLine.PlaceholderColor3 = C.Gray
+InputLine.TextColor3 = C.Green
 InputLine.Font = Enum.Font.Code
 InputLine.TextSize = 22
 InputLine.ClearTextOnFocus = false
 InputLine.ZIndex = 151
 InputLine.Parent = ReadyFrame
 
--- Отправка на Enter (ПК)
-local function CheckAndStart()
+-- Ждём завершения печати
+task.wait(0.5)
+while not bootComplete do
+    task.wait(0.1)
+end
+
+-- Показываем строку ввода с анимацией
+ReadyFrame.Visible = true
+ReadyFrame.Position = UDim2.new(0.1,0,0.74,0)
+Tween(ReadyFrame, 0.6, {Position = UDim2.new(0.1,0,0.65,0)})
+task.wait(0.3)
+InputLine:CaptureFocus()
+
+--==================================================
+-- INPUT HANDLERS
+--==================================================
+
+local function CheckAnswer()
     local answer = string.lower(InputLine.Text)
     if answer == "y" then
         StartMenu()
@@ -256,30 +279,23 @@ local function CheckAndStart()
     end
 end
 
+-- ПК: Enter
 InputLine.FocusLost:Connect(function(enterPressed)
     if enterPressed then
-        CheckAndStart()
+        CheckAnswer()
     end
 end)
 
--- Для мобильных: отслеживаем символ перевода строки
+-- Мобильные: отслеживаем символ перевода строки
 InputLine:GetPropertyChangedSignal("Text"):Connect(function()
     local text = InputLine.Text
     if string.find(text, "\n") then
         InputLine.Text = string.gsub(text, "\n", "")
-        CheckAndStart()
+        CheckAnswer()
     end
 end)
 
--- Показываем строку ввода с анимацией
-task.wait(1)
-ReadyFrame.Visible = true
-ReadyFrame.Position = UDim2.new(0.1,0,0.72,0)
-Tween(ReadyFrame, 0.6, {Position = UDim2.new(0.1,0,0.62,0)})
-task.wait(0.3)
-InputLine:CaptureFocus()
-
--- Для мобильных: клик по экрану вызывает клавиатуру
+-- Клик по экрану для мобильных
 Loader.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch and ReadyFrame.Visible then
         InputLine:CaptureFocus()
@@ -287,10 +303,26 @@ Loader.InputBegan:Connect(function(input)
 end)
 
 --==================================================
--- START MENU FUNCTION
+-- MAIN WINDOW
+--==================================================
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0,450,0,550)
+Main.Position = UDim2.new(0.5,-225,0.5,-275)
+Main.BackgroundColor3 = C.Panel
+Main.Visible = false
+Main.ZIndex = 10
+Corner(Main,30)
+Main.Parent = Gui
+
+--==================================================
+-- START MENU FUNCTION (ПОСЛЕ СОЗДАНИЯ MAIN)
 --==================================================
 
 local function StartMenu()
+    if State.readyProcessed then return end
+    State.readyProcessed = true
+    
     Tween(Loader, 0.7, {BackgroundTransparency = 1})
     task.wait(0.7)
     Loader.Visible = false
@@ -301,21 +333,12 @@ local function StartMenu()
 end
 
 --==================================================
--- MAIN WINDOW
+-- TOP
 --==================================================
-
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0,450,0,550)
-Main.Position = UDim2.new(0.5,-225,0.5,-275)
-Main.BackgroundColor3 = Colors.Panel
-Main.Visible = false
-Main.ZIndex = 10
-Corner(Main,30)
-Main.Parent = Gui
 
 local Top = Instance.new("Frame")
 Top.Size = UDim2.new(1,0,0,55)
-Top.BackgroundColor3 = Colors.Dark
+Top.BackgroundColor3 = C.Dark
 Top.ZIndex = 11
 Top.Parent = Main
 Corner(Top,30)
@@ -324,7 +347,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0.5,0,1,0)
 Title.BackgroundTransparency = 1
 Title.Text = "NOVA"
-Title.TextColor3 = Colors.Green
+Title.TextColor3 = C.Green
 Title.Font = Enum.Font.Code
 Title.TextSize = 28
 Title.ZIndex = 12
@@ -334,13 +357,13 @@ Title.Parent = Top
 -- TOP BUTTONS
 --==================================================
 
-local function TopButton(text,x,icon)
+local function TopButton(text,x)
     local b = Instance.new("TextButton")
     b.Size = UDim2.fromOffset(40,35)
     b.Position = UDim2.new(1,x,0.5,-17)
     b.Text = text
-    b.BackgroundColor3 = Colors.Black
-    b.TextColor3 = Colors.White
+    b.BackgroundColor3 = C.Black
+    b.TextColor3 = C.White
     b.Font = Enum.Font.Code
     b.TextSize = 18
     b.ZIndex = 12
@@ -348,10 +371,10 @@ local function TopButton(text,x,icon)
     b.Parent = Top
     
     b.MouseEnter:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = Colors.GreenDim})
+        Tween(b, 0.15, {BackgroundColor3 = C.GreenDim})
     end)
     b.MouseLeave:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = Colors.Black})
+        Tween(b, 0.15, {BackgroundColor3 = C.Black})
     end)
     return b
 end
@@ -369,8 +392,8 @@ Mini.Size = UDim2.fromOffset(70,70)
 Mini.Position = UDim2.new(0.05,0,0.85,0)
 Mini.Text = "N"
 Mini.TextSize = 35
-Mini.TextColor3 = Colors.Green
-Mini.BackgroundColor3 = Colors.Panel
+Mini.TextColor3 = C.Green
+Mini.BackgroundColor3 = C.Panel
 Mini.Visible = false
 Mini.ZIndex = 20
 Corner(Mini,50)
@@ -380,9 +403,9 @@ local miniGlow = Instance.new("Frame")
 miniGlow.Size = UDim2.new(1.1,0,1.1,0)
 miniGlow.Position = UDim2.new(-0.05,-0.05,-0.05,-0.05)
 miniGlow.BackgroundTransparency = 1
-miniGlow.BackgroundColor3 = Colors.Green
+miniGlow.BackgroundColor3 = C.Green
 miniGlow.BorderSizePixel = 2
-miniGlow.BorderColor3 = Colors.Green
+miniGlow.BorderColor3 = C.Green
 miniGlow.BorderTransparency = 0.7
 miniGlow.Parent = Mini
 Corner(miniGlow, 55)
@@ -397,28 +420,28 @@ task.spawn(function()
 end)
 
 --==================================================
--- BUTTONS WITH UIListLayout
+-- BUTTONS
 --==================================================
 
 local ButtonContainer = Instance.new("Frame")
-ButtonContainer.Size = UDim2.new(0.85,0,0,350)
+ButtonContainer.Size = UDim2.new(0.85,0,0,370)
 ButtonContainer.Position = UDim2.new(0.075,0,0,130)
 ButtonContainer.BackgroundTransparency = 1
 ButtonContainer.ZIndex = 12
 ButtonContainer.Parent = Main
 
 local ButtonLayout = Instance.new("UIListLayout")
-ButtonLayout.Padding = UDim.new(0,12)
+ButtonLayout.Padding = UDim.new(0,10)
 ButtonLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ButtonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 ButtonLayout.Parent = ButtonContainer
 
 local function CreateButton(text)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1,0,0,50)
-    b.BackgroundColor3 = Colors.Dark
+    b.Size = UDim2.new(1,0,0,48)
+    b.BackgroundColor3 = C.Dark
     b.Text = text
-    b.TextColor3 = Colors.White
+    b.TextColor3 = C.White
     b.Font = Enum.Font.Code
     b.TextSize = 17
     b.ZIndex = 13
@@ -426,18 +449,11 @@ local function CreateButton(text)
     b.Parent = ButtonContainer
     
     b.MouseEnter:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = Color3.fromRGB(35,35,35), Size = UDim2.new(1.02,0,0,52)})
+        Tween(b, 0.15, {BackgroundColor3 = Color3.fromRGB(35,35,35)})
     end)
     b.MouseLeave:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = Colors.Dark, Size = UDim2.new(1,0,0,50)})
+        Tween(b, 0.15, {BackgroundColor3 = C.Dark})
     end)
-    b.MouseButton1Down:Connect(function()
-        Tween(b, 0.08, {Size = UDim2.new(0.98,0,0,48)})
-    end)
-    b.MouseButton1Up:Connect(function()
-        Tween(b, 0.08, {Size = UDim2.new(1,0,0,50)})
-    end)
-    
     return b
 end
 
@@ -450,7 +466,7 @@ local PartBtn = CreateButton("HEAD")
 local MinimizeBtn = CreateButton("MINIMIZE")
 
 --==================================================
--- STATUS (отдельно)
+-- STATUS
 --==================================================
 
 local Status = Instance.new("TextLabel")
@@ -465,7 +481,7 @@ STATUS
 TARGET: None
 LOCK: Searching
 HIT: Head]]
-Status.TextColor3 = Colors.White
+Status.TextColor3 = C.White
 Status.Font = Enum.Font.Code
 Status.TextSize = 14
 Status.TextXAlignment = Enum.TextXAlignment.Left
@@ -503,7 +519,7 @@ SettingsFrame.Parent = Main
 local SettingsText = Instance.new("TextLabel")
 SettingsText.Size = UDim2.new(1,0,1,0)
 SettingsText.BackgroundTransparency = 1
-SettingsText.TextColor3 = Colors.White
+SettingsText.TextColor3 = C.White
 SettingsText.Font = Enum.Font.Code
 SettingsText.TextSize = 15
 SettingsText.TextXAlignment = Enum.TextXAlignment.Left
@@ -545,7 +561,7 @@ FriendLayout.Parent = FriendList
 local FriendInfo = Instance.new("Frame")
 FriendInfo.Size = UDim2.new(0.45,0,1,0)
 FriendInfo.Position = UDim2.new(0.55,0,0,0)
-FriendInfo.BackgroundColor3 = Colors.Dark
+FriendInfo.BackgroundColor3 = C.Dark
 FriendInfo.BackgroundTransparency = 1
 FriendInfo.Visible = false
 FriendInfo.Parent = FriendsFrame
@@ -556,7 +572,7 @@ FriendName.Size = UDim2.new(1,-20,0,30)
 FriendName.Position = UDim2.new(0,10,0,10)
 FriendName.BackgroundTransparency = 1
 FriendName.Text = "Player"
-FriendName.TextColor3 = Colors.White
+FriendName.TextColor3 = C.White
 FriendName.Font = Enum.Font.Code
 FriendName.TextSize = 18
 FriendName.TextXAlignment = Enum.TextXAlignment.Left
@@ -567,7 +583,7 @@ FriendQuestion.Size = UDim2.new(1,-20,0,30)
 FriendQuestion.Position = UDim2.new(0,10,0,45)
 FriendQuestion.BackgroundTransparency = 1
 FriendQuestion.Text = "Add to friends?"
-FriendQuestion.TextColor3 = Colors.Gray
+FriendQuestion.TextColor3 = C.Gray
 FriendQuestion.Font = Enum.Font.Code
 FriendQuestion.TextSize = 14
 FriendQuestion.TextXAlignment = Enum.TextXAlignment.Left
@@ -576,10 +592,10 @@ FriendQuestion.Parent = FriendInfo
 local ConfirmBtn = Instance.new("TextButton")
 ConfirmBtn.Size = UDim2.new(0.8,0,0,38)
 ConfirmBtn.Position = UDim2.new(0.1,0,0,85)
-ConfirmBtn.BackgroundColor3 = Colors.Green
+ConfirmBtn.BackgroundColor3 = C.Green
 ConfirmBtn.BackgroundTransparency = 0.3
 ConfirmBtn.Text = "✓ CONFIRM"
-ConfirmBtn.TextColor3 = Colors.White
+ConfirmBtn.TextColor3 = C.White
 ConfirmBtn.Font = Enum.Font.Code
 ConfirmBtn.TextSize = 14
 ConfirmBtn.Parent = FriendInfo
@@ -588,14 +604,20 @@ Corner(ConfirmBtn, 20)
 local CancelBtn = Instance.new("TextButton")
 CancelBtn.Size = UDim2.new(0.8,0,0,38)
 CancelBtn.Position = UDim2.new(0.1,0,0,130)
-CancelBtn.BackgroundColor3 = Colors.Red
+CancelBtn.BackgroundColor3 = C.Red
 CancelBtn.BackgroundTransparency = 0.3
 CancelBtn.Text = "✕ CANCEL"
-CancelBtn.TextColor3 = Colors.White
+CancelBtn.TextColor3 = C.White
 CancelBtn.Font = Enum.Font.Code
 CancelBtn.TextSize = 14
 CancelBtn.Parent = FriendInfo
 Corner(CancelBtn, 20)
+
+--==================================================
+-- FRIENDS CONNECTIONS
+--==================================================
+
+local FriendConnections = {}
 
 local function UpdateFriendsList()
     for _, child in pairs(FriendList:GetChildren()) do
@@ -603,6 +625,12 @@ local function UpdateFriendsList()
             child:Destroy()
         end
     end
+    
+    -- Очищаем старые подключения
+    for _, conn in ipairs(FriendConnections) do
+        if conn then conn:Disconnect() end
+    end
+    FriendConnections = {}
     
     local players = {}
     for _, plr in pairs(Players:GetPlayers()) do
@@ -616,7 +644,7 @@ local function UpdateFriendsList()
         empty.Size = UDim2.new(1,0,0,30)
         empty.BackgroundTransparency = 1
         empty.Text = "No players in server"
-        empty.TextColor3 = Colors.Gray
+        empty.TextColor3 = C.Gray
         empty.Font = Enum.Font.Code
         empty.TextSize = 14
         empty.Parent = FriendList
@@ -634,7 +662,7 @@ local function UpdateFriendsList()
         
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1,0,0,36)
-        btn.BackgroundColor3 = Colors.Dark
+        btn.BackgroundColor3 = C.Dark
         btn.BackgroundTransparency = 0.3
         btn.BorderSizePixel = 0
         btn.Parent = FriendList
@@ -645,7 +673,7 @@ local function UpdateFriendsList()
         name.Position = UDim2.new(0,12,0,0)
         name.BackgroundTransparency = 1
         name.Text = plr.Name
-        name.TextColor3 = isFriend and Colors.Green or Colors.White
+        name.TextColor3 = isFriend and C.Green or C.White
         name.Font = Enum.Font.Code
         name.TextSize = 14
         name.TextXAlignment = Enum.TextXAlignment.Left
@@ -656,12 +684,12 @@ local function UpdateFriendsList()
         action.Position = UDim2.new(0.8,0,0,0)
         action.BackgroundTransparency = 1
         action.Text = isFriend and "✓" or "+"
-        action.TextColor3 = isFriend and Colors.Green or Colors.Gray
+        action.TextColor3 = isFriend and C.Green or C.Gray
         action.Font = Enum.Font.Code
         action.TextSize = 18
         action.Parent = btn
         
-        btn.MouseButton1Click:Connect(function()
+        local conn = btn.MouseButton1Click:Connect(function()
             if isFriend then
                 for i, f in ipairs(State.friends) do
                     if f == plr then
@@ -677,18 +705,27 @@ local function UpdateFriendsList()
                 FriendInfo.BackgroundTransparency = 1
                 Tween(FriendInfo, 0.3, {BackgroundTransparency = 0})
                 
-                ConfirmBtn.MouseButton1Click:Connect(function()
+                -- Временно отключаем старые подключения Confirm/Cancel
+                for _, c in ipairs(FriendConnections) do
+                    if c then c:Disconnect() end
+                end
+                FriendConnections = {}
+                
+                local confirmConn = ConfirmBtn.MouseButton1Click:Connect(function()
                     table.insert(State.friends, plr)
                     FriendInfo.Visible = false
                     UpdateFriendsList()
                     UpdateStatus()
                 end)
+                table.insert(FriendConnections, confirmConn)
                 
-                CancelBtn.MouseButton1Click:Connect(function()
+                local cancelConn = CancelBtn.MouseButton1Click:Connect(function()
                     FriendInfo.Visible = false
                 end)
+                table.insert(FriendConnections, cancelConn)
             end
         end)
+        table.insert(FriendConnections, conn)
     end
     
     FriendLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -741,7 +778,7 @@ FriendsBtn.MouseButton1Click:Connect(function() SwitchTab("friends") end)
 local function ToggleAim()
     State.aimEnabled = not State.aimEnabled
     EnableBtn.Text = State.aimEnabled and "DISABLE AIM" or "ENABLE AIM"
-    EnableBtn.TextColor3 = State.aimEnabled and Colors.Red or Colors.White
+    EnableBtn.TextColor3 = State.aimEnabled and C.Red or C.White
     UpdateStatus()
     if not State.aimEnabled then
         State.target = nil
@@ -753,7 +790,7 @@ end
 local function ToggleXRay()
     State.xrayEnabled = not State.xrayEnabled
     XrayBtn.Text = State.xrayEnabled and "XRAY ON" or "XRAY OFF"
-    XrayBtn.TextColor3 = State.xrayEnabled and Colors.Green or Colors.White
+    XrayBtn.TextColor3 = State.xrayEnabled and C.Green or C.White
 end
 
 local function SwitchAimPart()
@@ -796,15 +833,17 @@ FullBtn.MouseButton1Click:Connect(function()
     if State.isFullscreen then
         FullBtn.Text = "◻"
         Tween(Main, 0.4, {
-            Size = UDim2.fromScale(0.92, 0.88),
-            Position = UDim2.fromScale(0.04, 0.06)
+            Size = UDim2.new(0, 700, 0, 500),
+            Position = UDim2.new(0.5, -350, 0.5, -250)
         })
+        Tween(ButtonContainer, 0.3, {Size = UDim2.new(0.5,0,0,370)})
     else
         FullBtn.Text = "□"
         Tween(Main, 0.4, {
             Size = UDim2.new(0,450,0,550),
             Position = UDim2.new(0.5,-225,0.5,-275)
         })
+        Tween(ButtonContainer, 0.3, {Size = UDim2.new(0.85,0,0,370)})
     end
 end)
 
@@ -971,34 +1010,4 @@ local function UpdateAim(dt)
         end
     end
     
-    if State.searchTimer < 0.05 then return end
-    State.searchTimer = 0
-    
-    local newTarget = FindBestTarget()
-    if newTarget then
-        State.target = newTarget
-        State.lostTimer = 0
-        State.targetCF = nil
-        State.smoothCF = nil
-        UpdateStatus()
-    else
-        if State.target then
-            State.target = nil
-            State.targetCF = nil
-            State.smoothCF = nil
-            UpdateStatus()
-        end
-    end
-end
-
---==================================================
--- HOTKEYS
---==================================================
-
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.One then
-        ToggleAim()
-    elseif input.KeyCode == Enum.KeyCode.Two then
-        SwitchAimPart()
-    elseif input.KeyCode == Enum.KeyCode.Three then
-        ToggleXRay
+    if State.search
