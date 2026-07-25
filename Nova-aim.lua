@@ -96,7 +96,7 @@ Loader.Parent = Gui
 
 local Terminal = Instance.new("TextLabel")
 Terminal.Size = UDim2.new(0.8,0,0.4,0)
-Terminal.Position = UDim2.new(0.1,0,0.25,0)
+Terminal.Position = UDim2.new(0.1,0,0.2,0)
 Terminal.BackgroundTransparency = 1
 Terminal.TextColor3 = Colors.Green
 Terminal.Font = Enum.Font.Code
@@ -107,11 +107,11 @@ Terminal.ZIndex = 101
 Terminal.Parent = Loader
 
 local InputLine = Instance.new("TextBox")
-InputLine.Size = UDim2.new(0.8,0,0,40)
-InputLine.Position = UDim2.new(0.1,0,0.7,0)
-InputLine.BackgroundTransparency = 1
+InputLine.Size = UDim2.new(0.4,0,0,40)
+InputLine.Position = UDim2.new(0.1,0,0.65,0)
+InputLine.BackgroundColor3 = Colors.Dark
 InputLine.TextColor3 = Colors.White
-InputLine.PlaceholderText = "$ type y or n"
+InputLine.PlaceholderText = ">"
 InputLine.PlaceholderColor3 = Colors.Gray
 InputLine.Font = Enum.Font.Code
 InputLine.TextSize = 20
@@ -119,6 +119,7 @@ InputLine.ClearTextOnFocus = false
 InputLine.Visible = false
 InputLine.ZIndex = 101
 InputLine.Parent = Loader
+Corner(InputLine, 10)
 
 local function TypeLine(text)
     Terminal.Text = Terminal.Text .. "\n"
@@ -240,7 +241,6 @@ Mini.ZIndex = 20
 Corner(Mini,50)
 Mini.Parent = Gui
 
--- Glow for mini
 local miniGlow = Instance.new("Frame")
 miniGlow.Size = UDim2.new(1.1,0,1.1,0)
 miniGlow.Position = UDim2.new(-0.05,-0.05,-0.05,-0.05)
@@ -294,12 +294,10 @@ local function CreateButton(text, y)
     return b
 end
 
--- Кнопки сбоку слева (увеличил размер и сделал красивее)
 local Software = CreateButton("SOFTWARE", 90)
 local Settings = CreateButton("SETTINGS", 155)
 local Friends = CreateButton("FRIENDS", 220)
 
--- Дополнительные кнопки для управления
 local EnableBtn = CreateButton("ENABLE AIM", 285)
 local XrayBtn = CreateButton("XRAY OFF", 350)
 local PartBtn = CreateButton("HEAD", 415)
@@ -683,11 +681,37 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 --==================================================
--- LOADER INPUT
+-- LOADER INPUT (FIXED FOR PC & MOBILE)
 --==================================================
 
-InputLine.FocusLost:Connect(function()
-    if string.lower(InputLine.Text) == "y" then
+-- Обработка ввода с клавиатуры для ПК
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if not InputLine.Visible then return end
+    
+    if input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.KeypadEnter then
+        local text = InputLine.Text
+        if text == "" then return end
+        
+        if string.lower(text) == "y" then
+            Tween(Loader, 0.5, {BackgroundTransparency = 1})
+            task.wait(0.6)
+            Loader.Visible = false
+            Main.Visible = true
+            Main.Size = UDim2.new(0,300,0,350)
+            Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
+            SwitchTab("software")
+        end
+    end
+end)
+
+-- Обработка фокуса для мобильных устройств
+InputLine.FocusLost:Connect(function(enterPressed)
+    if not enterPressed then return end
+    if InputLine.Text == "" then return end
+    
+    local text = InputLine.Text
+    if string.lower(text) == "y" then
         Tween(Loader, 0.5, {BackgroundTransparency = 1})
         task.wait(0.6)
         Loader.Visible = false
@@ -695,6 +719,13 @@ InputLine.FocusLost:Connect(function()
         Main.Size = UDim2.new(0,300,0,350)
         Tween(Main, 0.5, {Size = UDim2.new(0,450,0,550)})
         SwitchTab("software")
+    end
+end)
+
+-- Для мобильных: клик по экрану вызывает клавиатуру
+Loader.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch and InputLine.Visible then
+        InputLine:CaptureFocus()
     end
 end)
 
