@@ -1,15 +1,14 @@
 -- Nova v2.55
--- Загрузочный экран с волной и нормальными цветами, бля
+-- Загрузочный экран, финальная версия, бля
 
 local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 if CoreGui:FindFirstChild("Nova") then
     CoreGui.Nova:Destroy()
 end
 
--- цвета, подобрал получше
+-- цвета (однотипные, без анимации)
 local Theme = {
     bg = Color3.fromRGB(10, 10, 16),
     surface = Color3.fromRGB(20, 20, 28),
@@ -28,9 +27,9 @@ local Theme = {
 local FONT = Enum.Font.SourceSans
 local FONT_BOLD = Enum.Font.SourceSansBold
 
--- иконки (не глючные)
+-- иконки (крестик временно через rbxassetid)
 local Icons = {
-    Close = "rbxassetid://6031095305",
+    Close = "rbxassetid://6031095305",  -- временно, жду твою иконку
     Maximize = "rbxassetid://6031095457",
     Minimize = "rbxassetid://6031095388",
 }
@@ -42,27 +41,18 @@ local function Round(inst, r)
     return c
 end
 
--- анимация точек волной
-local animDots = {".", "..", "...", "....", "...", ".."}
-local dotIndex = 1
-local dotDirection = 1
+-- анимация символов волной
+local animChars = {"|", "/", "-", "\\", "-", "/"}
+local animIndex = 1
 
-function GetNextDots()
-    local dots = animDots[dotIndex]
-    dotIndex = dotIndex + dotDirection
-    
-    if dotIndex > 6 then
-        dotIndex = 5
-        dotDirection = -1
-    elseif dotIndex < 1 then
-        dotIndex = 2
-        dotDirection = 1
-    end
-    
-    return dots
+function GetNextChar()
+    local char = animChars[animIndex]
+    animIndex = animIndex + 1
+    if animIndex > #animChars then animIndex = 1 end
+    return char
 end
 
--- сообщения для загрузки
+-- сообщения
 local BootMessages = {
     "инициализация ядра Python",
     "загрузка модулей Nova",
@@ -86,7 +76,7 @@ local BootMessages = {
     "финальная настройка",
 }
 
--- создаём загрузочный экран
+-- создаём экран
 local Boot = {}
 
 function Boot:Create()
@@ -103,7 +93,7 @@ function Boot:Create()
     bg.BorderSizePixel = 0
     bg.Parent = gui
     
-    -- шапка с иконкой Python
+    -- шапка (с логотипом Termux)
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 44)
     header.BackgroundColor3 = Theme.surface
@@ -111,28 +101,28 @@ function Boot:Create()
     header.BorderSizePixel = 0
     header.Parent = bg
     
-    -- иконка Python
-    local pythonIcon = Instance.new("Frame")
-    pythonIcon.Size = UDim2.new(0, 22, 0, 22)
-    pythonIcon.Position = UDim2.new(0, 14, 0.5, -11)
-    pythonIcon.BackgroundColor3 = Theme.pythonBlue
-    pythonIcon.BorderSizePixel = 2
-    pythonIcon.BorderColor3 = Theme.pythonYellow
-    pythonIcon.Parent = header
-    Round(pythonIcon, 4)
+    -- логотип Termux (квадратик)
+    local termuxIcon = Instance.new("Frame")
+    termuxIcon.Size = UDim2.new(0, 22, 0, 22)
+    termuxIcon.Position = UDim2.new(0, 14, 0.5, -11)
+    termuxIcon.BackgroundColor3 = Theme.pythonBlue
+    termuxIcon.BorderSizePixel = 2
+    termuxIcon.BorderColor3 = Theme.pythonYellow
+    termuxIcon.Parent = header
+    Round(termuxIcon, 4)
     
     local headerText = Instance.new("TextLabel")
     headerText.Size = UDim2.new(1, -100, 1, 0)
     headerText.Position = UDim2.new(0, 44, 0, 0)
     headerText.BackgroundTransparency = 1
-    headerText.Text = "Python  —  Nova v2.55"
+    headerText.Text = "Termux  —  Nova v2.55"
     headerText.TextColor3 = Theme.text
     headerText.TextSize = 15
     headerText.Font = FONT_BOLD
     headerText.TextXAlignment = Enum.TextXAlignment.Left
     headerText.Parent = header
     
-    -- кнопки окна с иконками
+    -- кнопки с иконками
     local function MakeIconBtn(x, icon)
         local btn = Instance.new("ImageButton")
         btn.Size = UDim2.new(0, 28, 0, 28)
@@ -208,7 +198,6 @@ function Boot:Create()
     inputField.ClearTextOnFocus = false
     inputField.Parent = inputContainer
     
-    -- курсор
     local cursor = Instance.new("Frame")
     cursor.Size = UDim2.new(0, 2, 0, 18)
     cursor.Position = UDim2.new(0, 0, 0.5, -9)
@@ -217,7 +206,7 @@ function Boot:Create()
     cursor.Parent = inputContainer
     cursor.Visible = true
     
-    -- прогресс бар (без надписи загрузка)
+    -- прогресс
     local progressBg = Instance.new("Frame")
     progressBg.Size = UDim2.new(0, 300, 0, 3)
     progressBg.Position = UDim2.new(0.5, -150, 1, -16)
@@ -233,18 +222,51 @@ function Boot:Create()
     progressFill.Parent = progressBg
     Round(progressFill, 999)
     
-    function Boot:Log(msg, color)
-        local current = consoleText.Text
+    -- хранилище строк
+    local lines = {}
+    local currentMsg = ""
+    local currentColor = nil
+    local isAnimating = false
+    
+    function Boot:AddLine(msg, color, isStatic)
         local time = os.date("%H:%M:%S")
         local colorHex = color and string.format("<font color='rgb(%d,%d,%d)'>", color.R*255, color.G*255, color.B*255) or ""
         local reset = color and "</font>" or ""
         
-        -- анимация точек волной
-        local dots = GetNextDots()
-        local display = msg .. dots
+        if isStatic then
+            local line = colorHex .. "[" .. time .. "] " .. msg .. reset
+            table.insert(lines, line)
+            currentMsg = ""
+            currentColor = nil
+            isAnimating = false
+        else
+            currentMsg = msg
+            currentColor = color
+            isAnimating = true
+            local line = colorHex .. "[" .. time .. "] " .. msg .. " " .. reset
+            table.insert(lines, line)
+        end
         
-        consoleText.Text = current .. colorHex .. "[" .. time .. "] " .. display .. reset .. "\n"
-        -- не скроллим автоматически
+        Boot:Render()
+    end
+    
+    function Boot:UpdateAnim()
+        if not isAnimating or currentMsg == "" then return end
+        
+        local colorHex = currentColor and string.format("<font color='rgb(%d,%d,%d)'>", currentColor.R*255, currentColor.G*255, currentColor.B*255) or ""
+        local reset = currentColor and "</font>" or ""
+        local char = GetNextChar()
+        local time = os.date("%H:%M:%S")
+        
+        if #lines > 0 then
+            lines[#lines] = colorHex .. "[" .. time .. "] " .. currentMsg .. " " .. char .. reset
+        end
+        
+        Boot:Render()
+    end
+    
+    function Boot:Render()
+        consoleText.Text = table.concat(lines, "\n") .. "\n"
     end
     
     function Boot:UpdateProgress(pct)
@@ -255,10 +277,6 @@ function Boot:Create()
         inputContainer.Visible = true
         task.wait(0.2)
         inputField:CaptureFocus()
-    end
-    
-    function Boot:ClearInput()
-        inputField.Text = ""
     end
     
     -- ввод
@@ -277,11 +295,13 @@ function Boot:Create()
             end
             
             if isYes then
-                Boot:Log("запуск Nova, погнали", Theme.green)
+                isAnimating = false
+                Boot:AddLine("запуск Nova, погнали", Theme.green, true)
                 task.wait(0.5)
                 if StartNova then StartNova() end
             else
-                Boot:Log("отмена. перезапусти скрипт.", Theme.red)
+                isAnimating = false
+                Boot:AddLine("отмена. перезапусти скрипт.", Theme.red, true)
                 inputContainer.Visible = false
             end
         end
@@ -305,7 +325,6 @@ function Boot:Create()
     end)
     
     Boot.gui = gui
-    Boot.consoleText = consoleText
     Boot.inputField = inputField
     Boot.inputContainer = inputContainer
     return gui
@@ -313,7 +332,7 @@ end
 
 Boot:Create()
 
--- функция запуска (заглушка)
+-- функция запуска
 function StartNova()
     Boot.gui.Enabled = false
     Boot.gui:Destroy()
@@ -322,9 +341,9 @@ end
 
 -- запускаем загрузку
 task.spawn(function()
-    Boot:Log("Termux environment initialized", Theme.green)
-    Boot:Log("Python 3.11.5 (Nova framework)", Theme.pythonYellow)
-    Boot:Log("")
+    Boot:AddLine("Termux environment initialized", Theme.green, true)
+    Boot:AddLine("Python 3.11.5 (Nova framework)", Theme.pythonYellow, true)
+    Boot:AddLine("", nil, true)
     
     local shuffled = {}
     for i, msg in ipairs(BootMessages) do
@@ -343,16 +362,21 @@ task.spawn(function()
         
         local progress = i / steps
         Boot:UpdateProgress(progress)
-        Boot:Log(msg, Theme.textMuted)
+        
+        Boot:AddLine(msg, Theme.textMuted, false)
         
         local delay = stepTime * (0.6 + math.random() * 0.6)
-        task.wait(delay)
+        local startTime = tick()
+        while tick() - startTime < delay do
+            Boot:UpdateAnim()
+            task.wait(0.15)
+        end
     end
     
     Boot:UpdateProgress(1)
-    Boot:Log("")
-    Boot:Log("загрузка завершена, бля", Theme.green)
-    Boot:Log("Nova готов, you are ready? y/n", Theme.amber)
+    Boot:AddLine("", nil, true)
+    Boot:AddLine("загрузка завершена, бля", Theme.green, true)
+    Boot:AddLine("Nova готов, you are ready? y/n", Theme.amber, true)
     
     Boot:ShowInput()
 end)
