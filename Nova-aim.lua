@@ -1,5 +1,5 @@
 --==================================================
--- NOVA UI SYSTEM v4.1 FULL FIX
+-- NOVA UI SYSTEM v4.1 FINAL FIX
 --==================================================
 
 local Players = game:GetService("Players")
@@ -89,13 +89,6 @@ local function Tween(obj,time,data)
         data
     ):Play()
 end
-
---==================================================
--- FORWARD DECLARATIONS (FIX #1)
---==================================================
-
-local StartMenu
-local SwitchTab
 
 --==================================================
 -- LOADER
@@ -260,24 +253,9 @@ InputLine.ZIndex = 151
 InputLine.Parent = ReadyFrame
 
 --==================================================
--- CHECK ANSWER (FIX #2: StartMenu forward declared)
+-- MAIN WINDOW (создаём до функций)
 --==================================================
 
-local function CheckAnswer()
-    local answer = string.lower(InputLine.Text)
-    if answer == "y" then
-        StartMenu()
-    elseif answer == "n" then
-        InputLine.Text = ""
-        InputLine.PlaceholderText = "cancelled"
-    end
-end
-
---==================================================
--- START MENU FUNCTION (FIX #3: defined after Main)
---==================================================
-
--- MAIN WINDOW (создаём перед StartMenu)
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0,450,0,550)
 Main.Position = UDim2.new(0.5,-225,0.5,-275)
@@ -287,7 +265,17 @@ Main.ZIndex = 10
 Corner(Main,30)
 Main.Parent = Gui
 
--- Теперь StartMenu может использовать Main
+--==================================================
+-- FORWARD DECLARATIONS
+--==================================================
+
+local StartMenu
+local SwitchTab
+
+--==================================================
+-- START MENU FUNCTION
+--==================================================
+
 StartMenu = function()
     if State.readyProcessed then return end
     State.readyProcessed = true
@@ -302,7 +290,21 @@ StartMenu = function()
 end
 
 --==================================================
--- WAIT FOR BOOT (FIX #4: не блокируем главный поток)
+-- CHECK ANSWER
+--==================================================
+
+local function CheckAnswer()
+    local answer = string.lower(InputLine.Text)
+    if answer == "y" then
+        StartMenu()
+    elseif answer == "n" then
+        InputLine.Text = ""
+        InputLine.PlaceholderText = "cancelled"
+    end
+end
+
+--==================================================
+-- WAIT FOR BOOT
 --==================================================
 
 task.spawn(function()
@@ -321,14 +323,12 @@ end)
 -- INPUT HANDLERS
 --==================================================
 
--- ПК: Enter
 InputLine.FocusLost:Connect(function(enterPressed)
     if enterPressed then
         CheckAnswer()
     end
 end)
 
--- Мобильные: отслеживаем символ перевода строки
 InputLine:GetPropertyChangedSignal("Text"):Connect(function()
     local text = InputLine.Text
     if string.find(text, "\n") then
@@ -337,7 +337,6 @@ InputLine:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
--- Клик по экрану для мобильных
 Loader.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch and ReadyFrame.Visible then
         InputLine:CaptureFocus()
@@ -746,7 +745,7 @@ local function UpdateFriendsList()
 end
 
 --==================================================
--- TAB SWITCHING (FIX #5: forward declared)
+-- TAB SWITCHING
 --==================================================
 
 SwitchTab = function(tab)
@@ -1012,4 +1011,16 @@ local function UpdateAim(dt)
             return
         end
         
-        State.lostTimer = State.lostTimer +
+        State.lostTimer = State.lostTimer + dt
+        if State.lostTimer > 0.15 then
+            State.target = nil
+            State.targetCF = nil
+            State.smoothCF = nil
+        end
+    end
+    
+    if State.searchTimer < 0.05 then return end
+    State.searchTimer = 0
+    
+    local newTarget = FindBestTarget()
+    if newTarget then
