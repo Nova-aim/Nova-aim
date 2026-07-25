@@ -1,22 +1,38 @@
 --==================================================
--- NOVA v2.55 TERMINAL SYSTEM
--- BOOT + TERMINAL + COMMANDS + AIM + XRAY + FRIENDS
+-- NOVA UI SYSTEM
+-- Loading + Menu + Mini Logo + Functions
 --==================================================
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local workspace = game:GetService("Workspace")
+
 local Player = Players.LocalPlayer
+local GuiParent = Player:WaitForChild("PlayerGui")
 
-if not Player then return end
-
-local PlayerGui = Player:WaitForChild("PlayerGui")
-
-local OLD = PlayerGui:FindFirstChild("NovaSystem")
-if OLD then
-    OLD:Destroy()
+local old = GuiParent:FindFirstChild("NovaUI")
+if old then
+    old:Destroy()
 end
+
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "NovaUI"
+Gui.ResetOnSpawn = false
+Gui.IgnoreGuiInset = true
+Gui.Parent = GuiParent
+
+-- COLORS
+local Colors = {
+    Background = Color3.fromRGB(8,8,12),
+    Panel = Color3.fromRGB(15,15,22),
+    Accent = Color3.fromRGB(0,255,120),
+    Text = Color3.fromRGB(240,240,240),
+    Muted = Color3.fromRGB(130,130,140),
+    Red = Color3.fromRGB(255,50,50),
+    Dark = Color3.fromRGB(5,5,8),
+}
 
 --==================================================
 -- КАМЕРА
@@ -29,6 +45,23 @@ workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 end)
 
 --==================================================
+-- СОСТОЯНИЕ
+--==================================================
+
+local State = {
+    aimEnabled = false,
+    xrayEnabled = false,
+    friends = {},
+    target = nil,
+    targetCF = nil,
+    smoothCF = nil,
+    hue = 0,
+    lostTimer = 0,
+    searchTimer = 0,
+    xrayTimer = 0,
+}
+
+--==================================================
 -- НАСТРОЙКИ
 --==================================================
 
@@ -38,115 +71,128 @@ local Config = {
     FOV = 60,
     Smoothness = 0.15,
     Distance = 250,
-    Enabled = false,
 }
 
 --==================================================
--- СОСТОЯНИЕ
+-- LOADING SCREEN С ПРОЦЕНТАМИ
 --==================================================
 
-local State = {
-    target = nil,
-    targetCF = nil,
-    smoothCF = nil,
-    friends = {},
-    hue = 0,
-    lostTimer = 0,
-    searchTimer = 0,
-    xrayTimer = 0,
-    enabled = false,
-    bootComplete = false,
+local Loading = Instance.new("Frame")
+Loading.Size = UDim2.fromScale(1,1)
+Loading.BackgroundColor3 = Colors.Background
+Loading.Parent = Gui
+
+local Logo = Instance.new("TextLabel")
+Logo.Size = UDim2.new(1,0,0,80)
+Logo.Position = UDim2.new(0,0,0.25,0)
+Logo.BackgroundTransparency = 1
+Logo.Text = "NOVA"
+Logo.TextColor3 = Colors.Accent
+Logo.Font = Enum.Font.Code
+Logo.TextSize = 60
+Logo.Parent = Loading
+
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1,0,0,40)
+Status.Position = UDim2.new(0,0,0.38,0)
+Status.BackgroundTransparency = 1
+Status.Text = "Initializing system..."
+Status.TextColor3 = Colors.Text
+Status.Font = Enum.Font.Code
+Status.TextSize = 18
+Status.Parent = Loading
+
+local Percent = Instance.new("TextLabel")
+Percent.Size = UDim2.new(1,0,0,40)
+Percent.Position = UDim2.new(0,0,0.44,0)
+Percent.BackgroundTransparency = 1
+Percent.Text = "0%"
+Percent.TextColor3 = Colors.Accent
+Percent.Font = Enum.Font.Code
+Percent.TextSize = 24
+Percent.Parent = Loading
+
+local Bar = Instance.new("Frame")
+Bar.Size = UDim2.new(0,0,0,4)
+Bar.Position = UDim2.new(0.25,0,0.50,0)
+Bar.BackgroundColor3 = Colors.Accent
+Bar.Parent = Loading
+
+local bootSteps = {
+    {text = "Checking system modules...", pct = 10},
+    {text = "Loading interface...", pct = 30},
+    {text = "Preparing environment...", pct = 50},
+    {text = "Initializing Nova Core...", pct = 70},
+    {text = "Configuring settings...", pct = 85},
+    {text = "System ready!", pct = 100},
 }
 
---==================================================
--- X-RAY
---==================================================
-
-local XRay = {
-    enabled = false,
-    boxes = {},
-    container = nil,
-}
-
---==================================================
--- GUI
---==================================================
-
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "NovaSystem"
-Gui.ResetOnSpawn = false
-Gui.IgnoreGuiInset = true
-Gui.DisplayOrder = 9999
-Gui.Parent = PlayerGui
-
-local Main = Instance.new("Frame")
-Main.Size = UDim2.fromScale(1,1)
-Main.BackgroundColor3 = Color3.fromRGB(5,5,5)
-Main.BorderSizePixel = 0
-Main.Parent = Gui
-
--- Масштабирование для телефона
-local Scale = Instance.new("UIScale")
-Scale.Parent = Main
-Scale.Scale = math.clamp(workspace.CurrentCamera.ViewportSize.X / 800, 0.7, 1.2)
-
-workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    Scale.Scale = math.clamp(workspace.CurrentCamera.ViewportSize.X / 800, 0.7, 1.2)
+task.spawn(function()
+    for _, step in ipairs(bootSteps) do
+        Status.Text = step.text
+        local targetPct = step.pct / 100
+        TweenService:Create(
+            Bar,
+            TweenInfo.new(1.5),
+            {Size = UDim2.new(targetPct,0,0,4)}
+        ):Play()
+        for i = 1, step.pct do
+            Percent.Text = i .. "%"
+            task.wait(0.015)
+        end
+        task.wait(0.2)
+    end
+    task.wait(0.5)
+    TweenService:Create(
+        Loading,
+        TweenInfo.new(0.6),
+        {BackgroundTransparency = 1}
+    ):Play()
+    task.wait(0.6)
+    Loading:Destroy()
+    ShowMainMenu()
 end)
 
--- HEADER
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1,0,0,40)
-Header.BackgroundColor3 = Color3.fromRGB(15,15,15)
-Header.BorderSizePixel = 0
-Header.Parent = Main
+--==================================================
+-- MAIN MENU
+--==================================================
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0,420,0,320)
+Main.Position = UDim2.new(0.5,-210,0.5,-160)
+Main.BackgroundColor3 = Colors.Panel
+Main.BackgroundTransparency = 1
+Main.Parent = Gui
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0,14)
+Corner.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0.5,0,1,0)
-Title.Position = UDim2.new(0,15,0,0)
+Title.Size = UDim2.new(1,0,0,50)
 Title.BackgroundTransparency = 1
-Title.Text = "Nova v2.55"
-Title.TextColor3 = Color3.fromRGB(230,230,230)
+Title.Text = "NOVA"
+Title.TextColor3 = Colors.Accent
 Title.Font = Enum.Font.Code
-Title.TextSize = 18
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Header
+Title.TextSize = 32
+Title.Active = true
+Title.Parent = Main
 
--- OUTPUT
-local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(1,-30,1,-120)
-Scroll.Position = UDim2.new(0,15,0,55)
-Scroll.BackgroundTransparency = 1
-Scroll.BorderSizePixel = 0
-Scroll.ScrollBarThickness = 3
-Scroll.Parent = Main
+Title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        SwitchAimPart()
+    end
+end)
 
-local Output = Instance.new("TextLabel")
-Output.Size = UDim2.new(1,-10,0,0)
-Output.AutomaticSize = Enum.AutomaticSize.Y
-Output.BackgroundTransparency = 1
-Output.Text = ""
-Output.TextColor3 = Color3.fromRGB(0,255,100)
-Output.Font = Enum.Font.Code
-Output.TextSize = 16
-Output.TextXAlignment = Enum.TextXAlignment.Left
-Output.TextYAlignment = Enum.TextYAlignment.Top
-Output.RichText = true
-Output.Parent = Scroll
-
--- INPUT
-local Input = Instance.new("TextBox")
-Input.Size = UDim2.new(1,-30,0,35)
-Input.Position = UDim2.new(0,15,1,-55)
-Input.BackgroundColor3 = Color3.fromRGB(15,15,15)
-Input.BorderSizePixel = 0
-Input.TextColor3 = Color3.fromRGB(0,255,100)
-Input.PlaceholderText = "Nova@terminal:"
-Input.Font = Enum.Font.Code
-Input.TextSize = 16
-Input.ClearTextOnFocus = false
-Input.Visible = false
-Input.Parent = Main
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1,0,0,20)
+StatusText.Position = UDim2.new(0,0,0,50)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = "> offline"
+StatusText.TextColor3 = Colors.Muted
+StatusText.Font = Enum.Font.Code
+StatusText.TextSize = 14
+StatusText.Parent = Main
 
 -- FOV круг
 local fovCircle = Instance.new("ImageLabel")
@@ -177,49 +223,76 @@ xrayContainer.Size = UDim2.fromScale(1,1)
 xrayContainer.BackgroundTransparency = 1
 xrayContainer.BorderSizePixel = 0
 xrayContainer.Parent = Gui
-XRay.container = xrayContainer
 
 --==================================================
--- ТЕРМИНАЛ
+-- КНОПКИ
 --==================================================
 
-local Lines = {}
-
-local function Update()
-    Output.Text = table.concat(Lines, "\n")
-    task.wait()
-    Scroll.CanvasSize = UDim2.new(0,0,0, Output.AbsoluteSize.Y + 30)
-    Scroll.CanvasPosition = Vector2.new(0, Scroll.CanvasSize.Y.Offset)
+local function CreateButton(text, y)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0.8,0,0,40)
+    Button.Position = UDim2.new(0.1,0,0,y)
+    Button.BackgroundColor3 = Color3.fromRGB(25,25,35)
+    Button.Text = text
+    Button.TextColor3 = Colors.Text
+    Button.Font = Enum.Font.Code
+    Button.TextSize = 18
+    Button.BackgroundTransparency = 1
+    Button.Parent = Main
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0,8)
+    c.Parent = Button
+    return Button
 end
 
-local function Print(text, color)
-    local colorHex = color and string.format("<font color='rgb(%d,%d,%d)'>", color.R*255, color.G*255, color.B*255) or ""
-    local reset = color and "</font>" or ""
-    table.insert(Lines, colorHex .. text .. reset)
-    Update()
-end
+local Start = CreateButton("START",90)
+local XRayBtn = CreateButton("XRAY OFF",140)
+local Close = CreateButton("MINIMIZE",190)
 
-local function Type(text, color)
-    local current = ""
-    local colorHex = color and string.format("<font color='rgb(%d,%d,%d)'>", color.R*255, color.G*255, color.B*255) or ""
-    local reset = color and "</font>" or ""
-    table.insert(Lines, "")
-    local index = #Lines
-    for i = 1, #text do
-        current = current .. text:sub(i,i)
-        Lines[index] = colorHex .. current .. reset
-        Update()
-        task.wait(0.03)
+--==================================================
+-- MINI LOGO
+--==================================================
+
+local Mini = Instance.new("TextButton")
+Mini.Size = UDim2.new(0,70,0,70)
+Mini.Position = UDim2.new(0.1,0,0.8,0)
+Mini.BackgroundColor3 = Colors.Panel
+Mini.Text = "N"
+Mini.TextColor3 = Colors.Accent
+Mini.Font = Enum.Font.Code
+Mini.TextSize = 40
+Mini.Visible = false
+Mini.Parent = Gui
+
+local mc = Instance.new("UICorner")
+mc.CornerRadius = UDim.new(1,0)
+mc.Parent = Mini
+
+--==================================================
+-- ПЛАВНОЕ ПОЯВЛЕНИЕ МЕНЮ
+--==================================================
+
+local function ShowMainMenu()
+    Main.BackgroundTransparency = 1
+    TweenService:Create(
+        Main,
+        TweenInfo.new(0.5),
+        {BackgroundTransparency = 0}
+    ):Play()
+    task.wait(0.1)
+    for _, btn in ipairs({Start, XRayBtn, Close}) do
+        btn.BackgroundTransparency = 1
+        btn.Position = UDim2.new(0.1,0,btn.Position.Y.Scale + 0.05,0)
+        TweenService:Create(
+            btn,
+            TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {
+                BackgroundTransparency = 0,
+                Position = UDim2.new(0.1,0,btn.Position.Y.Scale - 0.05,0)
+            }
+        ):Play()
+        task.wait(0.08)
     end
-end
-
-local function Clear()
-    Lines = {}
-    Update()
-end
-
-local function Log(msg)
-    Print("> " .. msg, Color3.fromRGB(150,150,150))
 end
 
 --==================================================
@@ -312,16 +385,16 @@ end
 --==================================================
 
 local XRayParts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
+local XRayBoxes = {}
 
 local function CreateBox(plr)
-    if XRay.boxes[plr] then return end
+    if XRayBoxes[plr] then return end
     if IsFriend(plr) then return end
-    if not XRay.container then return end
     
     local box = Instance.new("Frame")
     box.Size = UDim2.new(0, 30, 0, 40)
     box.BackgroundTransparency = 1
-    box.Parent = XRay.container
+    box.Parent = xrayContainer
     
     local border = Instance.new("Frame")
     border.Size = UDim2.new(1, 0, 1, 0)
@@ -354,7 +427,7 @@ local function CreateBox(plr)
     name.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     name.Parent = box
     
-    XRay.boxes[plr] = {
+    XRayBoxes[plr] = {
         box = box,
         border = border,
         outline = outline,
@@ -363,15 +436,15 @@ local function CreateBox(plr)
 end
 
 local function UpdateBox(plr, hue)
-    local data = XRay.boxes[plr]
+    local data = XRayBoxes[plr]
     if not data then return end
     if not data.box or not data.box.Parent then
-        XRay.boxes[plr] = nil
+        XRayBoxes[plr] = nil
         return
     end
     if not plr or not plr.Character then
         if data.box then data.box:Destroy() end
-        XRay.boxes[plr] = nil
+        XRayBoxes[plr] = nil
         return
     end
     
@@ -424,11 +497,11 @@ local function UpdateBox(plr, hue)
 end
 
 local function ClearAllBoxes()
-    for plr in pairs(XRay.boxes) do
-        if XRay.boxes[plr] and XRay.boxes[plr].box then
-            XRay.boxes[plr].box:Destroy()
+    for plr in pairs(XRayBoxes) do
+        if XRayBoxes[plr] and XRayBoxes[plr].box then
+            XRayBoxes[plr].box:Destroy()
         end
-        XRay.boxes[plr] = nil
+        XRayBoxes[plr] = nil
     end
 end
 
@@ -474,19 +547,19 @@ local function Update(dt)
     if not Camera then return end
     
     -- X-Ray
-    if XRay.enabled then
+    if State.xrayEnabled then
         State.hue = (State.hue + dt * 0.15) % 1
         State.xrayTimer = State.xrayTimer + dt
         
         if State.xrayTimer >= 0.03 then
             State.xrayTimer = 0
             
-            for plr in pairs(XRay.boxes) do
+            for plr in pairs(XRayBoxes) do
                 if not plr or not plr.Parent or not IsAlive(plr) or IsFriend(plr) then
-                    if XRay.boxes[plr] and XRay.boxes[plr].box then
-                        XRay.boxes[plr].box:Destroy()
+                    if XRayBoxes[plr] and XRayBoxes[plr].box then
+                        XRayBoxes[plr].box:Destroy()
                     end
-                    XRay.boxes[plr] = nil
+                    XRayBoxes[plr] = nil
                 end
             end
             
@@ -499,7 +572,7 @@ local function Update(dt)
         end
     end
     
-    if not State.enabled then return end
+    if not State.aimEnabled then return end
     
     -- Аим
     State.searchTimer = State.searchTimer + dt
@@ -535,28 +608,37 @@ local function Update(dt)
         State.lostTimer = 0
         State.targetCF = nil
         State.smoothCF = nil
-        Log("target: " .. newTarget.Name)
+        StatusText.Text = "> locked: " .. newTarget.Name
+        StatusText.TextColor3 = Colors.Accent
     else
         if State.target then
             State.target = nil
             State.targetCF = nil
             State.smoothCF = nil
         end
+        StatusText.Text = "> searching..."
+        StatusText.TextColor3 = Colors.Muted
     end
 end
 
 --==================================================
--- КОМАНДЫ
+-- ФУНКЦИИ ДЛЯ КНОПОК
 --==================================================
 
 local function ToggleAim()
-    State.enabled = not State.enabled
-    if State.enabled then
-        Log("Aim ON")
+    State.aimEnabled = not State.aimEnabled
+    if State.aimEnabled then
+        Start.Text = "STOP"
+        Start.TextColor3 = Colors.Red
+        StatusText.Text = "> active"
+        StatusText.TextColor3 = Colors.Accent
         fovCircle.Visible = true
         crosshair.Visible = true
     else
-        Log("Aim OFF")
+        Start.Text = "START"
+        Start.TextColor3 = Colors.Text
+        StatusText.Text = "> offline"
+        StatusText.TextColor3 = Colors.Muted
         fovCircle.Visible = false
         crosshair.Visible = false
         State.target = nil
@@ -566,166 +648,137 @@ local function ToggleAim()
     end
 end
 
-local function SwitchAimPart()
-    if Config.AimPart == "Head" then
-        Config.AimPart = "HumanoidRootPart"
-        Config.BackupPart = "Torso"
-        Log("Aim: BODY")
-    else
-        Config.AimPart = "Head"
-        Config.BackupPart = "UpperTorso"
-        Log("Aim: HEAD")
-    end
-end
-
 local function ToggleXRay()
-    XRay.enabled = not XRay.enabled
-    Log("X-Ray: " .. (XRay.enabled and "ON" or "OFF"))
-    if not XRay.enabled then
+    State.xrayEnabled = not State.xrayEnabled
+    if State.xrayEnabled then
+        XRayBtn.Text = "XRAY ON"
+        XRayBtn.TextColor3 = Colors.Accent
+    else
+        XRayBtn.Text = "XRAY OFF"
+        XRayBtn.TextColor3 = Colors.Text
         ClearAllBoxes()
     end
 end
 
-local function ShowFriends()
-    if #State.friends == 0 then
-        Log("No friends added")
-        return
-    end
-    local names = {}
-    for _, f in ipairs(State.friends) do
-        table.insert(names, f.Name)
-    end
-    Log("Friends: " .. table.concat(names, ", "))
-end
-
-local function AddFriend(name)
-    for _, plr in pairs(Players:GetPlayers()) do
-        if string.lower(plr.Name) == string.lower(name) and plr ~= Player then
-            if not IsFriend(plr) then
-                table.insert(State.friends, plr)
-                Log("Added friend: " .. plr.Name)
-                return
-            else
-                Log("Already friend: " .. plr.Name)
-                return
-            end
-        end
-    end
-    Log("Player not found: " .. name)
-end
-
-local function RemoveFriend(name)
-    for i, plr in ipairs(State.friends) do
-        if string.lower(plr.Name) == string.lower(name) then
-            table.remove(State.friends, i)
-            Log("Removed friend: " .. name)
-            return
-        end
-    end
-    Log("Friend not found: " .. name)
-end
-
---==================================================
--- ОБРАБОТЧИК КОМАНД
---==================================================
-
-local function Execute(command)
-    local parts = {}
-    for word in command:gmatch("%S+") do
-        table.insert(parts, word)
-    end
-    
-    if #parts == 0 then return end
-    
-    local cmd = string.lower(parts[1])
-    
-    if cmd == "help" then
-        Print("")
-        Print("=== NOVA COMMANDS ===", Color3.fromRGB(0,255,100))
-        Print("help     - show commands")
-        Print("clear    - clear terminal")
-        Print("version  - show version")
-        Print("status   - system status")
-        Print("info     - Nova information")
-        Print("on       - enable aim")
-        Print("off      - disable aim")
-        Print("aim      - switch aim part (HEAD/BODY)")
-        Print("xray     - toggle X-Ray ON/OFF")
-        Print("friends  - show friends list")
-        Print("add <name>   - add friend")
-        Print("remove <name> - remove friend")
-        Print("exit     - close terminal")
-        Print("")
-    elseif cmd == "clear" then
-        Clear()
-    elseif cmd == "version" then
-        Print("Nova v2.55 Terminal")
-    elseif cmd == "status" then
-        Print("Terminal: ONLINE")
-        Print("Aim: " .. (State.enabled and "ON" or "OFF"))
-        Print("X-Ray: " .. (XRay.enabled and "ON" or "OFF"))
-        Print("Friends: " .. #State.friends)
-    elseif cmd == "info" then
-        Print("Nova Terminal System v2.55")
-        Print("Built: 2026")
-        Print("Aim Part: " .. Config.AimPart)
-        Print("FOV: " .. Config.FOV)
-        Print("Smoothness: " .. Config.Smoothness)
-    elseif cmd == "on" then
-        if not State.enabled then ToggleAim() end
-    elseif cmd == "off" then
-        if State.enabled then ToggleAim() end
-    elseif cmd == "aim" then
-        SwitchAimPart()
-    elseif cmd == "xray" then
-        ToggleXRay()
-    elseif cmd == "friends" then
-        ShowFriends()
-    elseif cmd == "add" and parts[2] then
-        AddFriend(parts[2])
-    elseif cmd == "remove" and parts[2] then
-        RemoveFriend(parts[2])
-    elseif cmd == "exit" then
-        Clear()
-        Type("Shutting down...")
-        task.wait(0.5)
-        Gui:Destroy()
+local function SwitchAimPart()
+    if Config.AimPart == "Head" then
+        Config.AimPart = "HumanoidRootPart"
+        Config.BackupPart = "Torso"
+        StatusText.Text = "> aim: body"
     else
-        Print("Unknown command: " .. cmd)
-        Print("Type help for commands")
+        Config.AimPart = "Head"
+        Config.BackupPart = "UpperTorso"
+        StatusText.Text = "> aim: head"
+    end
+    StatusText.TextColor3 = Colors.Text
+end
+
+--==================================================
+-- АНИМАЦИЯ МИНИ-ЛОГО
+--==================================================
+
+local function AnimateMiniLogo()
+    while Mini and Mini.Parent do
+        TweenService:Create(
+            Mini,
+            TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1, true),
+            {Size = UDim2.new(0, 72, 0, 72)}
+        ):Play()
+        task.wait(2)
+        TweenService:Create(
+            Mini,
+            TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1, true),
+            {Size = UDim2.new(0, 68, 0, 68)}
+        ):Play()
+        task.wait(2)
     end
 end
 
---==================================================
--- ЗАГРУЗКА (BOOT)
---==================================================
+task.spawn(AnimateMiniLogo)
 
-local function BootSequence()
-    Type("Nova v2.55 Terminal")
-    Type("")
-    Type("Initializing Nova Core...")
-    task.wait(0.3)
-    Type("Loading modules...")
-    task.wait(0.3)
-    Type("Checking configuration...")
-    task.wait(0.3)
-    Type("Preparing interface...")
-    task.wait(0.3)
-    Type("")
-    Type("Initialization complete.")
-    Type("")
-    Type("Continue? (y/n)")
-    
-    Input.Visible = true
-    Input:CaptureFocus()
-end
+Mini.MouseEnter:Connect(function()
+    TweenService:Create(
+        Mini,
+        TweenInfo.new(0.3),
+        {BackgroundColor3 = Color3.fromRGB(25,25,35)}
+    ):Play()
+end)
+
+Mini.MouseLeave:Connect(function()
+    TweenService:Create(
+        Mini,
+        TweenInfo.new(0.3),
+        {BackgroundColor3 = Colors.Panel}
+    ):Play()
+end)
 
 --==================================================
--- БЫСТРЫЕ КЛАВИШИ
+-- MINI LOGO DRAG (улучшенный)
+--==================================================
+
+local dragData = {
+    dragging = false,
+    startPos = nil,
+    startOffset = nil,
+    connection = nil,
+}
+
+Mini.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragData.dragging = true
+        dragData.startPos = input.Position
+        dragData.startOffset = Mini.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragData.dragging then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragData.startPos
+            Mini.Position = UDim2.new(
+                dragData.startOffset.X.Scale,
+                dragData.startOffset.X.Offset + delta.X,
+                dragData.startOffset.Y.Scale,
+                dragData.startOffset.Y.Offset + delta.Y
+            )
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragData.dragging = false
+    end
+end)
+
+--==================================================
+-- ПОДКЛЮЧЕНИЕ КНОПОК
+--==================================================
+
+Start.MouseButton1Click:Connect(ToggleAim)
+
+XRayBtn.MouseButton1Click:Connect(ToggleXRay)
+
+Close.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    Mini.Visible = true
+    TweenService:Create(
+        Mini,
+        TweenInfo.new(0.5),
+        {Size = UDim2.new(0, 80, 0, 80)}
+    ):Play()
+end)
+
+Mini.MouseButton1Click:Connect(function()
+    Main.Visible = true
+    Mini.Visible = false
+end)
+
+--==================================================
+-- ГОРЯЧИЕ КЛАВИШИ
 --==================================================
 
 UserInputService.InputBegan:Connect(function(input)
-    if Gui and not Gui.Enabled then return end
     if input.KeyCode == Enum.KeyCode.One then
         ToggleAim()
     elseif input.KeyCode == Enum.KeyCode.Two then
@@ -736,16 +789,12 @@ UserInputService.InputBegan:Connect(function(input)
 end)
 
 --==================================================
--- ЗАПУСК ЦИКЛА
+-- ЗАПУСК
 --==================================================
 
-RunService.RenderStepped:Connect(function(dt)
+local renderConnection = RunService.RenderStepped:Connect(function(dt)
     pcall(Update, dt)
 end)
-
---==================================================
--- ОБНОВЛЕНИЕ ПОЗИЦИИ ПРИЦЕЛА
---==================================================
 
 local function UpdateCrosshair()
     if not Camera then return end
@@ -757,42 +806,13 @@ Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateCrosshair)
 UserInputService.WindowFocused:Connect(UpdateCrosshair)
 
 --==================================================
--- INPUT HANDLER
+-- ОЧИСТКА
 --==================================================
 
-Input.FocusLost:Connect(function(enter)
-    if not enter then return end
-    
-    local text = Input.Text
-    Input.Text = ""
-    
-    if State.bootComplete == false then
-        if text == "y" or text == "yes" then
-            State.bootComplete = true
-            Clear()
-            Type("Nova Terminal v2.55")
-            Type("")
-            Print("Type help for commands")
-            Print("")
-            Input.PlaceholderText = "Nova@terminal:"
-        elseif text == "n" or text == "no" then
-            Type("Cancelled.")
-            task.wait(1)
-            Gui:Destroy()
-        end
-    else
-        Execute(text)
-    end
-    
-    if Gui and Gui.Enabled then
-        Input:CaptureFocus()
+Gui.AncestryChanged:Connect(function()
+    if not Gui.Parent then
+        renderConnection:Disconnect()
     end
 end)
 
---==================================================
--- ЗАПУСК
---==================================================
-
-task.spawn(BootSequence)
-
-print("Nova v2.55 Terminal loaded, blya!")
+print("Nova UI loaded with functions!")
