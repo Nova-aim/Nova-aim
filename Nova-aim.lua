@@ -12,7 +12,6 @@ local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local Camera = workspace.CurrentCamera
 
--- Удаляем старый GUI
 local old = PlayerGui:FindFirstChild("NovaUI")
 if old then
     old:Destroy()
@@ -374,13 +373,6 @@ local function TopButton(text,x)
     b.ZIndex = 12
     Corner(b,12)
     b.Parent = Top
-    
-    b.MouseEnter:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = C.GreenDim})
-    end)
-    b.MouseLeave:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = C.Black})
-    end)
     return b
 end
 
@@ -452,13 +444,6 @@ local function CreateButton(text)
     b.ZIndex = 13
     Corner(b,25)
     b.Parent = ButtonContainer
-    
-    b.MouseEnter:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = Color3.fromRGB(35,35,35)})
-    end)
-    b.MouseLeave:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = C.Dark})
-    end)
     return b
 end
 
@@ -769,6 +754,10 @@ local function SwitchTab(tab)
     end
     State.currentTab = tab
 end
+
+--==================================================
+-- КНОПКИ - ПОДКЛЮЧЕНИЕ (ИСПРАВЛЕНО!)
+--==================================================
 
 SoftwareBtn.MouseButton1Click:Connect(function() SwitchTab("software") end)
 SettingsBtn.MouseButton1Click:Connect(function() SwitchTab("settings") end)
