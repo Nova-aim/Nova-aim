@@ -1,5 +1,5 @@
 --==================================================
--- NOVA ULTIMATE v6.0 FULLY FIXED
+-- NOVA ULTIMATE v6.0 FULL GUI FIX
 --==================================================
 
 local Players = game:GetService("Players")
@@ -289,7 +289,8 @@ local function StartMenu()
         Size = UDim2.new(0, 470, 0, 540)
     }, Enum.EasingStyle.Back)
     
-    task.wait(0.3)
+    -- Показываем элементы по очереди
+    task.wait(0.2)
     Tween(Header, 0.3, {BackgroundTransparency = 0})
     task.wait(0.1)
     Tween(Tabs, 0.3, {BackgroundTransparency = 0})
@@ -360,7 +361,7 @@ Main.ZIndex = 10
 Corner(Main, 22)
 Main.Parent = Gui
 
--- Particles in menu (45 шт)
+-- ЧАСТИЦЫ В МЕНЮ (45 ШТ)
 local MenuParticles = CreateParticleSystem(Main, 45, C.GreenDim, 0.008, {2,4})
 
 --==================================================
@@ -384,7 +385,7 @@ Title.TextSize = 28
 Title.TextColor3 = C.White
 Title.Parent = Header
 
--- Кнопки хедера (иконки)
+-- Кнопки хедера
 local function HeaderButton(text, x)
     local b = Instance.new("TextButton")
     b.Size = UDim2.fromOffset(40, 35)
@@ -533,7 +534,7 @@ local EnableBtn = BigButton("◉ ENABLE", 330, Color3.fromRGB(20, 80, 40))
 local MinimizeBtn = BigButton("◯ MINIMIZE", 388, C.Dark)
 
 --==================================================
--- SETTINGS (ПОЛНОСТЬЮ РАБОЧИЕ)
+-- SETTINGS
 --==================================================
 
 local SettingsFrame = Instance.new("Frame")
@@ -600,7 +601,7 @@ local SmoothSlider = Slider("Smoothness", 110, 0.15, 0.01, 1, "%.2f")
 local DistSlider = Slider("Distance", 200, 250, 50, 500, "%d")
 
 --==================================================
--- OPTIONS (ЧЕКБОКСЫ)
+-- OPTIONS
 --==================================================
 
 Label("OPTIONS", 310, 20)
@@ -631,7 +632,7 @@ local IgnoreWallsChk = Checkbox("☐ Ignore Walls", 375)
 local AutoSwitchChk = Checkbox("☐ Auto Switch", 405)
 
 --==================================================
--- FRIENDS (С АВАТАРКАМИ)
+-- FRIENDS
 --==================================================
 
 local FriendsFrame = Instance.new("Frame")
@@ -879,7 +880,7 @@ Settings.MouseButton1Click:Connect(function() SwitchTab("settings") end)
 Friends.MouseButton1Click:Connect(function() SwitchTab("friends") end)
 
 --==================================================
--- BUTTON FUNCTIONS (ВСЁ РАБОТАЕТ)
+-- BUTTON FUNCTIONS
 --==================================================
 
 local function ToggleAim()
