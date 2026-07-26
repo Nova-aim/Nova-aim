@@ -1,6 +1,5 @@
 --==================================================
--- NOVA ULTIMATE v5.0
--- Полный пиздец красоты
+-- NOVA v2.55.1 ULTIMATE
 --==================================================
 
 local Players = game:GetService("Players")
@@ -27,23 +26,22 @@ Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 Gui.Parent = PlayerGui
 
 --==================================================
--- ЦВЕТА
+-- COLORS
 --==================================================
 
 local C = {
     Black = Color3.fromRGB(5,5,5),
-    Panel = Color3.fromRGB(12,12,12),
-    Dark = Color3.fromRGB(20,20,22),
-    White = Color3.fromRGB(235,235,240),
-    Gray = Color3.fromRGB(130,130,140),
-    Green = Color3.fromRGB(100,255,140),
+    Panel = Color3.fromRGB(15,15,15),
+    Dark = Color3.fromRGB(22,22,22),
+    White = Color3.fromRGB(240,240,240),
+    Gray = Color3.fromRGB(130,130,130),
+    Green = Color3.fromRGB(120,255,150),
     Red = Color3.fromRGB(255,70,70),
     GreenDim = Color3.fromRGB(20,60,30),
-    Glow = Color3.fromRGB(80,255,130),
 }
 
 --==================================================
--- СОСТОЯНИЕ
+-- STATE
 --==================================================
 
 local State = {
@@ -60,11 +58,10 @@ local State = {
     currentTab = "software",
     isFullscreen = false,
     readyProcessed = false,
-    isMinimized = false,
 }
 
 --==================================================
--- КОНФИГ
+-- CONFIG
 --==================================================
 
 local Config = {
@@ -79,7 +76,7 @@ local Config = {
 }
 
 --==================================================
--- УТИЛИТЫ
+-- UTILS
 --==================================================
 
 local function Corner(obj,r)
@@ -96,74 +93,38 @@ local function Tween(obj,time,data,style)
     ):Play()
 end
 
-local function TweenIn(obj,time,data)
-    TweenService:Create(
-        obj,
-        TweenInfo.new(time, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
-        data
-    ):Play()
-end
-
 --==================================================
--- ЗАГРУЗЧИК (С ПАРТИКЛАМИ)
+-- ЧАСТИЦЫ (ТОЛЬКО НА ФОНЕ МЕНЮ)
 --==================================================
 
-local Loader = Instance.new("Frame")
-Loader.Size = UDim2.fromScale(1,1)
-Loader.BackgroundColor3 = C.Black
-Loader.ZIndex = 100
-Loader.Parent = Gui
+local ParticleSystems = {}
 
--- Glow
-local GlowOverlay = Instance.new("Frame")
-GlowOverlay.Size = UDim2.fromScale(1,1)
-GlowOverlay.BackgroundTransparency = 1
-GlowOverlay.BackgroundColor3 = C.Glow
-GlowOverlay.ZIndex = 101
-GlowOverlay.Parent = Loader
-
--- Терминал
-local Terminal = Instance.new("TextLabel")
-Terminal.Size = UDim2.new(0.8,0,0.4,0)
-Terminal.Position = UDim2.new(0.1,0,0.15,0)
-Terminal.BackgroundTransparency = 1
-Terminal.TextColor3 = C.Green
-Terminal.Font = Enum.Font.Code
-Terminal.TextSize = 20
-Terminal.TextXAlignment = Enum.TextXAlignment.Left
-Terminal.TextYAlignment = Enum.TextYAlignment.Top
-Terminal.ZIndex = 110
-Terminal.Parent = Loader
-
---==================================================
--- ЧАСТИЦЫ (ВЕЗДЕ)
---==================================================
-
-local function CreateParticles(parent,count,color)
-    local particles = {}
+local function CreateParticleSystem(parent, count, color, speed)
     local container = Instance.new("Frame")
     container.Size = UDim2.fromScale(1,1)
     container.BackgroundTransparency = 1
-    container.ZIndex = 105
+    container.ZIndex = 1
     container.Parent = parent
     
+    local particles = {}
     local col = color or C.Green
+    local spd = speed or 0.008
     
-    for i = 1,count do
+    for i = 1, count do
         local p = Instance.new("Frame")
         local size = math.random(2,4)
         p.Size = UDim2.fromOffset(size,size)
         p.Position = UDim2.fromScale(math.random(), math.random())
         p.BackgroundColor3 = col
         p.BackgroundTransparency = 0.3 + math.random() * 0.4
-        p.ZIndex = 106
+        p.ZIndex = 2
         Corner(p,10)
         p.Parent = container
         
         table.insert(particles, {
             frame = p,
-            speedX = (math.random() - 0.5) * 0.01,
-            speedY = (math.random() - 0.5) * 0.01,
+            speedX = (math.random() - 0.5) * spd * 2,
+            speedY = (math.random() - 0.5) * spd * 2,
             phase = math.random() * 2 * math.pi,
             startX = p.Position.X.Scale,
             startY = p.Position.Y.Scale,
@@ -171,7 +132,7 @@ local function CreateParticles(parent,count,color)
         })
     end
     
-    return {
+    local system = {
         container = container,
         particles = particles,
         Update = function(self)
@@ -194,14 +155,28 @@ local function CreateParticles(parent,count,color)
             if self.container then self.container:Destroy() end
         end
     }
+    
+    table.insert(ParticleSystems, system)
+    return system
 end
 
--- Создаём частицы для загрузчика
-local LoaderParticles = CreateParticles(Loader, 50, C.Green)
+--==================================================
+-- ЗАГРУЗОЧНЫЙ ЭКРАН
+--==================================================
 
---==================================================
--- GLOW PULSE ЗАГРУЗЧИКА
---==================================================
+local Loader = Instance.new("Frame")
+Loader.Size = UDim2.fromScale(1,1)
+Loader.BackgroundColor3 = C.Black
+Loader.ZIndex = 100
+Loader.Parent = Gui
+
+-- Glow
+local GlowOverlay = Instance.new("Frame")
+GlowOverlay.Size = UDim2.fromScale(1,1)
+GlowOverlay.BackgroundTransparency = 1
+GlowOverlay.BackgroundColor3 = C.Green
+GlowOverlay.ZIndex = 101
+GlowOverlay.Parent = Loader
 
 task.spawn(function()
     while Loader and Loader.Parent do
@@ -212,15 +187,24 @@ task.spawn(function()
     end
 end)
 
---==================================================
--- ТЕРМИНАЛ
---==================================================
+-- Терминал
+local Terminal = Instance.new("TextLabel")
+Terminal.Size = UDim2.new(0.8,0,0.4,0)
+Terminal.Position = UDim2.new(0.1,0,0.15,0)
+Terminal.BackgroundTransparency = 1
+Terminal.TextColor3 = C.Green
+Terminal.Font = Enum.Font.Code
+Terminal.TextSize = 20
+Terminal.TextXAlignment = Enum.TextXAlignment.Left
+Terminal.TextYAlignment = Enum.TextYAlignment.Top
+Terminal.ZIndex = 110
+Terminal.Parent = Loader
 
 local function TypeLine(text)
     Terminal.Text = Terminal.Text .. "\n"
-    for i = 1,#text do
-        Terminal.Text = Terminal.Text .. string.sub(text,i,i)
-        task.wait(0.02)
+    for i = 1, #text do
+        Terminal.Text = Terminal.Text .. string.sub(text, i, i)
+        task.wait(0.025)
     end
 end
 
@@ -228,20 +212,18 @@ local bootComplete = false
 
 task.spawn(function()
     local lines = {
-        "$ NOVA SYSTEM BOOT v5.0",
-        "$ Loading core modules...",
-        "$ Initializing particle engine...",
-        "$ Checking security layer...",
-        "$ Loading interface...",
-        "$ Connection stable",
-        "$ Engine ready",
+        "$ NOVA SYSTEM BOOT",
+        "$ Loading modules...",
+        "$ Checking interface...",
+        "$ Particle engine online",
+        "$ Security layer ready",
+        "$ UI initialized",
         "",
         "READY? y/n"
     }
-    
-    for _,v in ipairs(lines) do
+    for _, v in ipairs(lines) do
         TypeLine(v)
-        task.wait(0.2)
+        task.wait(0.25)
     end
     bootComplete = true
 end)
@@ -283,66 +265,6 @@ InputLine.ClearTextOnFocus = false
 InputLine.ZIndex = 151
 InputLine.Parent = ReadyFrame
 
---==================================================
--- ГЛАВНОЕ ОКНО (NOVA v2 СТИЛЬ)
---==================================================
-
-local Main = Instance.new("Frame")
-Main.Size = UDim2.fromOffset(470,540)
-Main.Position = UDim2.fromScale(0.5,0.5)
-Main.AnchorPoint = Vector2.new(0.5,0.5)
-Main.BackgroundColor3 = C.Panel
-Main.BackgroundTransparency = 1
-Main.Visible = false
-Main.ZIndex = 10
-Corner(Main,22)
-Main.Parent = Gui
-
---==================================================
--- ЧАСТИЦЫ В МЕНЮ
---==================================================
-
-local MenuParticles = CreateParticles(Main, 30, C.GreenDim)
-
---==================================================
--- START MENU (С АНИМАЦИЕЙ)
---==================================================
-
-local function StartMenu()
-    if State.readyProcessed then return end
-    State.readyProcessed = true
-    
-    -- Плавное исчезновение загрузчика
-    Tween(Loader, 0.8, {BackgroundTransparency = 1})
-    LoaderParticles:Destroy()
-    task.wait(0.8)
-    Loader.Visible = false
-    
-    -- Появление меню с анимацией
-    Main.Visible = true
-    Main.BackgroundTransparency = 1
-    Main.Size = UDim2.fromOffset(300,350)
-    
-    Tween(Main, 0.5, {
-        BackgroundTransparency = 0,
-        Size = UDim2.fromOffset(470,540)
-    }, Enum.EasingStyle.Back)
-    
-    -- Появление элементов по очереди
-    task.wait(0.3)
-    Tween(Top, 0.3, {BackgroundTransparency = 0})
-    task.wait(0.1)
-    Tween(Tabs, 0.3, {BackgroundTransparency = 0})
-    task.wait(0.1)
-    Tween(SoftwareFrame, 0.3, {BackgroundTransparency = 0})
-    
-    SwitchTab("software")
-end
-
---==================================================
--- ПРОВЕРКА ОТВЕТА
---==================================================
-
 local function CheckAnswer()
     local answer = string.lower(InputLine.Text)
     if answer == "y" then
@@ -361,7 +283,6 @@ task.spawn(function()
     while not bootComplete do
         task.wait(0.1)
     end
-    
     ReadyFrame.Visible = true
     ReadyFrame.Position = UDim2.new(0.1,0,0.74,0)
     Tween(ReadyFrame, 0.6, {Position = UDim2.new(0.1,0,0.65,0)})
@@ -369,14 +290,8 @@ task.spawn(function()
     InputLine:CaptureFocus()
 end)
 
---==================================================
--- ОБРАБОТЧИКИ ВВОДА
---==================================================
-
 InputLine.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        CheckAnswer()
-    end
+    if enterPressed then CheckAnswer() end
 end)
 
 InputLine:GetPropertyChangedSignal("Text"):Connect(function()
@@ -394,31 +309,73 @@ Loader.InputBegan:Connect(function(input)
 end)
 
 --==================================================
+-- ГЛАВНОЕ МЕНЮ
+--==================================================
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.fromOffset(470, 540)
+Main.Position = UDim2.fromScale(0.5, 0.5)
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.BackgroundColor3 = C.Panel
+Main.BackgroundTransparency = 1
+Main.Visible = false
+Main.ZIndex = 10
+Corner(Main, 18)
+Main.Parent = Gui
+
+-- Частицы на фоне меню
+local MenuParticles = CreateParticleSystem(Main, 35, C.GreenDim, 0.007)
+
+--==================================================
+-- ЗАПУСК МЕНЮ
+--==================================================
+
+local function StartMenu()
+    if State.readyProcessed then return end
+    State.readyProcessed = true
+    
+    Tween(Loader, 0.7, {BackgroundTransparency = 1})
+    task.wait(0.7)
+    Loader.Visible = false
+    
+    Main.Visible = true
+    Main.BackgroundTransparency = 1
+    Main.Size = UDim2.fromOffset(300, 350)
+    
+    Tween(Main, 0.5, {
+        BackgroundTransparency = 0,
+        Size = UDim2.fromOffset(470, 540)
+    }, Enum.EasingStyle.Back)
+    
+    SwitchTab("software")
+end
+
+--==================================================
 -- HEADER
 --==================================================
 
-local Top = Instance.new("Frame")
-Top.Size = UDim2.new(1,0,0,52)
-Top.BackgroundColor3 = C.Dark
-Top.BackgroundTransparency = 1
-Top.ZIndex = 11
-Corner(Top,22)
-Top.Parent = Main
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1,0,0,52)
+Header.BackgroundColor3 = C.Dark
+Header.BackgroundTransparency = 0.5
+Header.ZIndex = 11
+Corner(Header, 18)
+Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
 Title.BackgroundTransparency = 1
 Title.Size = UDim2.new(1,0,1,0)
-Title.Text = "Nova v5.0"
+Title.Text = "Nova v2.55.1"
 Title.Font = Enum.Font.Code
 Title.TextSize = 28
 Title.TextColor3 = C.White
-Title.Parent = Top
+Title.Parent = Header
 
 -- Кнопки хедера
-local function HeaderButton(text,x)
+local function HeaderButton(text, x)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.fromOffset(40,35)
-    b.Position = UDim2.new(1,x,0.5,-17)
+    b.Size = UDim2.fromOffset(40, 35)
+    b.Position = UDim2.new(1, x, 0.5, -17)
     b.Text = text
     b.BackgroundColor3 = C.Black
     b.BackgroundTransparency = 0.5
@@ -426,8 +383,8 @@ local function HeaderButton(text,x)
     b.Font = Enum.Font.Code
     b.TextSize = 18
     b.ZIndex = 12
-    Corner(b,12)
-    b.Parent = Top
+    Corner(b, 12)
+    b.Parent = Header
     
     b.MouseEnter:Connect(function()
         Tween(b, 0.15, {BackgroundColor3 = C.GreenDim, TextColor3 = C.White})
@@ -448,25 +405,25 @@ local CloseBtn = HeaderButton("✕", -50)
 
 local Tabs = Instance.new("Frame")
 Tabs.BackgroundTransparency = 1
-Tabs.Size = UDim2.new(1,-20,0,40)
-Tabs.Position = UDim2.new(0,10,0,62)
+Tabs.Size = UDim2.new(1, -20, 0, 40)
+Tabs.Position = UDim2.new(0, 10, 0, 62)
 Tabs.Parent = Main
 
 local Layout = Instance.new("UIListLayout")
 Layout.FillDirection = Enum.FillDirection.Horizontal
-Layout.Padding = UDim.new(0,8)
+Layout.Padding = UDim.new(0, 8)
 Layout.Parent = Tabs
 
 local function Tab(text)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.fromOffset(140,34)
+    b.Size = UDim2.fromOffset(140, 34)
     b.BackgroundColor3 = C.Dark
     b.BackgroundTransparency = 0.3
     b.Text = text
     b.TextColor3 = C.Gray
     b.Font = Enum.Font.Code
     b.TextSize = 18
-    Corner(b,10)
+    Corner(b, 10)
     b.Parent = Tabs
     
     b.MouseEnter:Connect(function()
@@ -475,7 +432,6 @@ local function Tab(text)
     b.MouseLeave:Connect(function()
         Tween(b, 0.15, {BackgroundColor3 = C.Dark, TextColor3 = C.Gray})
     end)
-    
     return b
 end
 
@@ -484,20 +440,20 @@ local Settings = Tab("SETTINGS")
 local Friends = Tab("FRIENDS")
 
 --==================================================
--- SOFTWARE PAGE
+-- SOFTWARE
 --==================================================
 
 local SoftwareFrame = Instance.new("Frame")
 SoftwareFrame.BackgroundTransparency = 1
-SoftwareFrame.Size = UDim2.new(1,-30,1,-120)
-SoftwareFrame.Position = UDim2.new(0,15,0,110)
+SoftwareFrame.Size = UDim2.new(1, -30, 1, -120)
+SoftwareFrame.Position = UDim2.new(0, 15, 0, 110)
 SoftwareFrame.Parent = Main
 
-local function Label(txt,y,size)
+local function Label(txt, y, size)
     local l = Instance.new("TextLabel")
     l.BackgroundTransparency = 1
-    l.Position = UDim2.new(0,0,0,y)
-    l.Size = UDim2.new(1,0,0,26)
+    l.Position = UDim2.new(0, 0, 0, y)
+    l.Size = UDim2.new(1, 0, 0, 26)
     l.Font = Enum.Font.Code
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.TextSize = size or 19
@@ -507,68 +463,61 @@ local function Label(txt,y,size)
     return l
 end
 
-local StatusLabel = Label("SYSTEM",0,20)
-local StatusLine = Label("● STATUS : READY",40)
-local EngineLine = Label("● ENGINE : ACTIVE",68)
-local ConnLine = Label("● CONNECTION : STABLE",96)
+local StatusLabel = Label("SYSTEM", 0, 20)
+local StatusLine = Label("● STATUS : READY", 40)
+local EngineLine = Label("● ENGINE : ACTIVE", 68)
+local ConnLine = Label("● CONNECTION : STABLE", 96)
 
-local TargetTitle = Label("TARGET",145,20)
+local TargetTitle = Label("TARGET", 145, 20)
 
 local Target = Instance.new("Frame")
-Target.Size = UDim2.new(1,-40,0,42)
-Target.Position = UDim2.new(0,20,0,180)
+Target.Size = UDim2.new(1, -40, 0, 42)
+Target.Position = UDim2.new(0, 20, 0, 180)
 Target.BackgroundColor3 = C.Dark
 Target.BackgroundTransparency = 0.5
-Corner(Target,8)
+Corner(Target, 8)
 Target.Parent = SoftwareFrame
 
 local TargetName = Instance.new("TextLabel")
 TargetName.BackgroundTransparency = 1
-TargetName.Size = UDim2.new(1,0,1,0)
+TargetName.Size = UDim2.new(1, 0, 1, 0)
 TargetName.Text = "None"
 TargetName.Font = Enum.Font.Code
 TargetName.TextSize = 18
 TargetName.TextColor3 = C.Gray
 TargetName.Parent = Target
 
-local LockLine = Label("LOCK : SEARCHING",240)
-local HitLine = Label("HIT : HEAD",270)
+local LockLine = Label("LOCK : SEARCHING", 240)
+local HitLine = Label("HIT : HEAD", 270)
 
 --==================================================
 -- БОЛЬШИЕ КНОПКИ
 --==================================================
 
-local function BigButton(text,y,color)
+local function BigButton(text, y, color)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1,-60,0,48)
-    b.Position = UDim2.new(0,30,0,y)
+    b.Size = UDim2.new(1, -60, 0, 48)
+    b.Position = UDim2.new(0, 30, 0, y)
     b.BackgroundColor3 = color or C.Dark
     b.BackgroundTransparency = 0.3
     b.Text = text
     b.TextColor3 = C.White
     b.Font = Enum.Font.Code
     b.TextSize = 19
-    Corner(b,12)
+    Corner(b, 12)
     b.Parent = SoftwareFrame
     
     b.MouseEnter:Connect(function()
-        Tween(b, 0.12, {BackgroundTransparency = 0.1, Size = UDim2.new(1.02,-60,0,50)})
+        Tween(b, 0.12, {BackgroundTransparency = 0.1, Size = UDim2.new(1.02, -60, 0, 50)})
     end)
     b.MouseLeave:Connect(function()
-        Tween(b, 0.12, {BackgroundTransparency = 0.3, Size = UDim2.new(1,-60,0,48)})
+        Tween(b, 0.12, {BackgroundTransparency = 0.3, Size = UDim2.new(1, -60, 0, 48)})
     end)
-    b.MouseButton1Down:Connect(function()
-        Tween(b, 0.08, {Size = UDim2.new(0.98,-60,0,46)})
-    end)
-    b.MouseButton1Up:Connect(function()
-        Tween(b, 0.08, {Size = UDim2.new(1,-60,0,48)})
-    end)
-    
     return b
 end
 
-local EnableBtn = BigButton("◉ ENABLE",330,Color3.fromRGB(20,80,40))
-local MinimizeBtn = BigButton("◯ MINIMIZE",388,C.Dark)
+local EnableBtn = BigButton("◉ ENABLE", 330, Color3.fromRGB(20, 80, 40))
+local MinimizeBtn = BigButton("◯ MINIMIZE", 388, C.Dark)
 
 --==================================================
 -- SETTINGS
@@ -581,11 +530,11 @@ SettingsFrame.Size = SoftwareFrame.Size
 SettingsFrame.Position = SoftwareFrame.Position
 SettingsFrame.Parent = Main
 
-local function Slider(name,y,value,minVal,maxVal,format)
+local function Slider(name, y, value, minVal, maxVal, format)
     local t = Instance.new("TextLabel")
     t.BackgroundTransparency = 1
-    t.Position = UDim2.new(0,0,0,y)
-    t.Size = UDim2.new(1,0,0,25)
+    t.Position = UDim2.new(0, 0, 0, y)
+    t.Size = UDim2.new(1, 0, 0, 25)
     t.Text = name
     t.TextXAlignment = Enum.TextXAlignment.Left
     t.Font = Enum.Font.Code
@@ -594,21 +543,21 @@ local function Slider(name,y,value,minVal,maxVal,format)
     t.Parent = SettingsFrame
 
     local bar = Instance.new("Frame")
-    bar.Position = UDim2.new(0,0,0,y+32)
-    bar.Size = UDim2.new(1,-80,0,6)
+    bar.Position = UDim2.new(0, 0, 0, y+32)
+    bar.Size = UDim2.new(1, -80, 0, 6)
     bar.BackgroundColor3 = C.Dark
-    Corner(bar,4)
+    Corner(bar, 4)
     bar.Parent = SettingsFrame
 
     local fill = Instance.new("Frame")
-    fill.Size = UDim2.new((value - minVal) / (maxVal - minVal),0,1,0)
+    fill.Size = UDim2.new((value - minVal) / (maxVal - minVal), 0, 1, 0)
     fill.BackgroundColor3 = C.Green
-    Corner(fill,4)
+    Corner(fill, 4)
     fill.Parent = bar
 
     local val = Instance.new("TextLabel")
-    val.Position = UDim2.new(1,-50,0,y+18)
-    val.Size = UDim2.fromOffset(50,30)
+    val.Position = UDim2.new(1, -50, 0, y+18)
+    val.Size = UDim2.fromOffset(50, 30)
     val.BackgroundTransparency = 1
     val.Text = format and string.format(format, value) or tostring(value)
     val.Font = Enum.Font.Code
@@ -627,26 +576,26 @@ local function Slider(name,y,value,minVal,maxVal,format)
             local clamped = math.clamp(newVal, self.minVal, self.maxVal)
             self.value = clamped
             local pos = (clamped - self.minVal) / (self.maxVal - self.minVal)
-            self.fill.Size = UDim2.new(pos,0,1,0)
+            self.fill.Size = UDim2.new(pos, 0, 1, 0)
             self.label.Text = self.format and string.format(self.format, clamped) or tostring(clamped)
         end
     }
 end
 
-local FOVSlider = Slider("Field Of View",20,60,1,120,"%d")
-local SmoothSlider = Slider("Smoothness",110,0.15,0.01,1,"%.2f")
-local DistSlider = Slider("Distance",200,250,50,500,"%d")
+local FOVSlider = Slider("Field Of View", 20, 60, 1, 120, "%d")
+local SmoothSlider = Slider("Smoothness", 110, 0.15, 0.01, 1, "%.2f")
+local DistSlider = Slider("Distance", 200, 250, 50, 500, "%d")
 
 --==================================================
 -- OPTIONS
 --==================================================
 
-local OptionsTitle = Label("OPTIONS",310,20)
+local OptionsTitle = Label("OPTIONS", 310, 20)
 
-local function Checkbox(text,y)
+local function Checkbox(text, y)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1,0,0,30)
-    b.Position = UDim2.new(0,0,0,y)
+    b.Size = UDim2.new(1, 0, 0, 30)
+    b.Position = UDim2.new(0, 0, 0, y)
     b.BackgroundTransparency = 1
     b.Text = text
     b.TextColor3 = C.White
@@ -661,13 +610,12 @@ local function Checkbox(text,y)
     b.MouseLeave:Connect(function()
         Tween(b, 0.12, {TextColor3 = C.White})
     end)
-    
     return b
 end
 
-local KeepTargetChk = Checkbox("☐ Keep Target",345)
-local IgnoreWallsChk = Checkbox("☐ Ignore Walls",375)
-local AutoSwitchChk = Checkbox("☐ Auto Switch",405)
+local KeepTargetChk = Checkbox("☐ Keep Target", 345)
+local IgnoreWallsChk = Checkbox("☐ Ignore Walls", 375)
+local AutoSwitchChk = Checkbox("☐ Auto Switch", 405)
 
 --==================================================
 -- FRIENDS
@@ -681,19 +629,19 @@ FriendsFrame.Position = SoftwareFrame.Position
 FriendsFrame.Parent = Main
 
 local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(0.52,0,1,0)
+Scroll.Size = UDim2.new(0.52, 0, 1, 0)
 Scroll.CanvasSize = UDim2.new()
 Scroll.ScrollBarThickness = 4
 Scroll.BackgroundTransparency = 1
 Scroll.Parent = FriendsFrame
 
 local Layout2 = Instance.new("UIListLayout")
-Layout2.Padding = UDim.new(0,8)
+Layout2.Padding = UDim.new(0, 8)
 Layout2.Parent = Scroll
 
 local FriendInfoPanel = Instance.new("Frame")
-FriendInfoPanel.Size = UDim2.new(0.42,0,1,0)
-FriendInfoPanel.Position = UDim2.new(0.58,0,0,0)
+FriendInfoPanel.Size = UDim2.new(0.42, 0, 1, 0)
+FriendInfoPanel.Position = UDim2.new(0.58, 0, 0, 0)
 FriendInfoPanel.BackgroundColor3 = C.Dark
 FriendInfoPanel.BackgroundTransparency = 1
 FriendInfoPanel.Visible = false
@@ -701,8 +649,8 @@ FriendInfoPanel.Parent = FriendsFrame
 Corner(FriendInfoPanel, 12)
 
 local FriendInfoName = Instance.new("TextLabel")
-FriendInfoName.Size = UDim2.new(1,-20,0,30)
-FriendInfoName.Position = UDim2.new(0,10,0,10)
+FriendInfoName.Size = UDim2.new(1, -20, 0, 30)
+FriendInfoName.Position = UDim2.new(0, 10, 0, 10)
 FriendInfoName.BackgroundTransparency = 1
 FriendInfoName.Text = "Player"
 FriendInfoName.Font = Enum.Font.Code
@@ -712,8 +660,8 @@ FriendInfoName.TextXAlignment = Enum.TextXAlignment.Left
 FriendInfoName.Parent = FriendInfoPanel
 
 local FriendInfoQuestion = Instance.new("TextLabel")
-FriendInfoQuestion.Size = UDim2.new(1,-20,0,25)
-FriendInfoQuestion.Position = UDim2.new(0,10,0,50)
+FriendInfoQuestion.Size = UDim2.new(1, -20, 0, 25)
+FriendInfoQuestion.Position = UDim2.new(0, 10, 0, 50)
 FriendInfoQuestion.BackgroundTransparency = 1
 FriendInfoQuestion.Text = "Add to friends?"
 FriendInfoQuestion.Font = Enum.Font.Code
@@ -723,8 +671,8 @@ FriendInfoQuestion.TextXAlignment = Enum.TextXAlignment.Left
 FriendInfoQuestion.Parent = FriendInfoPanel
 
 local FriendConfirm = Instance.new("TextButton")
-FriendConfirm.Size = UDim2.new(0.8,0,0,40)
-FriendConfirm.Position = UDim2.new(0.1,0,0,90)
+FriendConfirm.Size = UDim2.new(0.8, 0, 0, 40)
+FriendConfirm.Position = UDim2.new(0.1, 0, 0, 90)
 FriendConfirm.BackgroundColor3 = C.Green
 FriendConfirm.BackgroundTransparency = 0.3
 FriendConfirm.Text = "✓ CONFIRM"
@@ -735,8 +683,8 @@ Corner(FriendConfirm, 12)
 FriendConfirm.Parent = FriendInfoPanel
 
 local FriendCancel = Instance.new("TextButton")
-FriendCancel.Size = UDim2.new(0.8,0,0,40)
-FriendCancel.Position = UDim2.new(0.1,0,0,140)
+FriendCancel.Size = UDim2.new(0.8, 0, 0, 40)
+FriendCancel.Position = UDim2.new(0.1, 0, 0, 140)
 FriendCancel.BackgroundColor3 = C.Red
 FriendCancel.BackgroundTransparency = 0.3
 FriendCancel.Text = "✕ CANCEL"
@@ -747,50 +695,7 @@ Corner(FriendCancel, 12)
 FriendCancel.Parent = FriendInfoPanel
 
 --==================================================
--- MINI ЛОГО
---==================================================
-
-local Mini = Instance.new("TextButton")
-Mini.Size = UDim2.fromOffset(70,70)
-Mini.Position = UDim2.new(0.05,0,0.85,0)
-Mini.Text = "N"
-Mini.TextSize = 35
-Mini.TextColor3 = C.Green
-Mini.BackgroundColor3 = C.Panel
-Mini.Visible = false
-Mini.ZIndex = 20
-Corner(Mini,50)
-Mini.Parent = Gui
-
-local miniGlow = Instance.new("Frame")
-miniGlow.Size = UDim2.new(1.1,0,1.1,0)
-miniGlow.Position = UDim2.new(-0.05,-0.05,-0.05,-0.05)
-miniGlow.BackgroundTransparency = 1
-miniGlow.BackgroundColor3 = C.Green
-miniGlow.BorderSizePixel = 2
-miniGlow.BorderColor3 = C.Green
-miniGlow.BorderTransparency = 0.7
-miniGlow.Parent = Mini
-Corner(miniGlow, 55)
-
-task.spawn(function()
-    while Mini and Mini.Parent do
-        Tween(miniGlow, 1.5, {BorderTransparency = 0.3})
-        task.wait(1.5)
-        Tween(miniGlow, 1.5, {BorderTransparency = 0.7})
-        task.wait(1.5)
-    end
-end)
-
-Mini.MouseEnter:Connect(function()
-    Tween(Mini, 0.15, {Size = UDim2.fromOffset(75,75), TextColor3 = C.White})
-end)
-Mini.MouseLeave:Connect(function()
-    Tween(Mini, 0.15, {Size = UDim2.fromOffset(70,70), TextColor3 = C.Green})
-end)
-
---==================================================
--- ФУНКЦИИ ОБНОВЛЕНИЯ
+-- ФУНКЦИИ
 --==================================================
 
 local function UpdateStatus()
@@ -811,10 +716,6 @@ local function UpdateStatus()
     TargetName.TextColor3 = State.target and C.Green or C.Gray
 end
 
---==================================================
--- FRIENDS ЛИСТ
---==================================================
-
 local function UpdateFriendsList()
     for _, child in pairs(Scroll:GetChildren()) do
         if child:IsA("TextButton") then
@@ -831,14 +732,14 @@ local function UpdateFriendsList()
     
     if #players == 0 then
         local empty = Instance.new("TextLabel")
-        empty.Size = UDim2.new(1,0,0,30)
+        empty.Size = UDim2.new(1, 0, 0, 30)
         empty.BackgroundTransparency = 1
         empty.Text = "No players in server"
         empty.TextColor3 = C.Gray
         empty.Font = Enum.Font.Code
         empty.TextSize = 14
         empty.Parent = Scroll
-        Scroll.CanvasSize = UDim2.new(0,0,0,40)
+        Scroll.CanvasSize = UDim2.new(0, 0, 0, 40)
         return
     end
     
@@ -851,7 +752,7 @@ local function UpdateFriendsList()
         end
         
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1,0,0,40)
+        btn.Size = UDim2.new(1, 0, 0, 40)
         btn.BackgroundColor3 = isFriend and Color3.fromRGB(20,60,30) or C.Dark
         btn.BackgroundTransparency = 0.5
         btn.BorderSizePixel = 0
@@ -865,10 +766,10 @@ local function UpdateFriendsList()
             Tween(btn, 0.12, {BackgroundTransparency = 0.5})
         end)
         
-        -- Аватарка
+        -- Аватар
         local avatar = Instance.new("ImageLabel")
-        avatar.Size = UDim2.fromOffset(32,32)
-        avatar.Position = UDim2.new(0,4,0.5,-16)
+        avatar.Size = UDim2.fromOffset(32, 32)
+        avatar.Position = UDim2.new(0, 4, 0.5, -16)
         avatar.BackgroundColor3 = C.Dark
         avatar.BorderSizePixel = isFriend and 2 or 0
         avatar.BorderColor3 = C.Green
@@ -878,10 +779,9 @@ local function UpdateFriendsList()
         end)
         avatar.Parent = btn
         
-        -- Имя
         local name = Instance.new("TextLabel")
-        name.Size = UDim2.new(0.6,0,1,0)
-        name.Position = UDim2.new(0,44,0,0)
+        name.Size = UDim2.new(0.6, 0, 1, 0)
+        name.Position = UDim2.new(0, 44, 0, 0)
         name.BackgroundTransparency = 1
         name.Text = plr.Name
         name.TextColor3 = isFriend and C.Green or C.White
@@ -890,10 +790,9 @@ local function UpdateFriendsList()
         name.TextXAlignment = Enum.TextXAlignment.Left
         name.Parent = btn
         
-        -- Статус
         local status = Instance.new("TextLabel")
-        status.Size = UDim2.new(0.2,0,1,0)
-        status.Position = UDim2.new(0.8,0,0,0)
+        status.Size = UDim2.new(0.2, 0, 1, 0)
+        status.Position = UDim2.new(0.8, 0, 0, 0)
         status.BackgroundTransparency = 1
         status.Text = isFriend and "✓" or "+"
         status.TextColor3 = isFriend and C.Green or C.Gray
@@ -910,21 +809,22 @@ local function UpdateFriendsList()
                     end
                 end
                 UpdateFriendsList()
+                UpdateStatus()
             else
                 FriendInfoName.Text = plr.Name
                 FriendInfoPanel.Visible = true
                 FriendInfoPanel.BackgroundTransparency = 1
-                FriendInfoPanel.Position = UDim2.new(0.58,0,0,0)
-                Tween(FriendInfoPanel, 0.3, {BackgroundTransparency = 0, Position = UDim2.new(0.55,0,0,0)})
+                FriendInfoPanel.Position = UDim2.new(0.58, 0, 0, 0)
+                Tween(FriendInfoPanel, 0.3, {BackgroundTransparency = 0, Position = UDim2.new(0.55, 0, 0, 0)})
             end
         end)
     end
     
     Layout2:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        Scroll.CanvasSize = UDim2.new(0,0,0, Layout2.AbsoluteContentSize.Y + 10)
+        Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout2.AbsoluteContentSize.Y + 10)
     end)
     task.wait()
-    Scroll.CanvasSize = UDim2.new(0,0,0, Layout2.AbsoluteContentSize.Y + 10)
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout2.AbsoluteContentSize.Y + 10)
 end
 
 --==================================================
@@ -984,7 +884,6 @@ end
 EnableBtn.MouseButton1Click:Connect(ToggleAim)
 
 MinimizeBtn.MouseButton1Click:Connect(function()
-    State.isMinimized = true
     Tween(Main, 0.3, {Size = UDim2.fromOffset(200,200), BackgroundTransparency = 1})
     task.wait(0.3)
     Main.Visible = false
@@ -992,13 +891,55 @@ MinimizeBtn.MouseButton1Click:Connect(function()
     Tween(Mini, 0.3, {Size = UDim2.fromOffset(80,80)})
 end)
 
+--==================================================
+-- MINI ЛОГО
+--==================================================
+
+local Mini = Instance.new("TextButton")
+Mini.Size = UDim2.fromOffset(70, 70)
+Mini.Position = UDim2.new(0.05, 0, 0.85, 0)
+Mini.Text = "N"
+Mini.TextSize = 35
+Mini.TextColor3 = C.Green
+Mini.BackgroundColor3 = C.Panel
+Mini.Visible = false
+Mini.ZIndex = 20
+Corner(Mini, 50)
+Mini.Parent = Gui
+
+local miniGlow = Instance.new("Frame")
+miniGlow.Size = UDim2.new(1.1, 0, 1.1, 0)
+miniGlow.Position = UDim2.new(-0.05, -0.05, -0.05, -0.05)
+miniGlow.BackgroundTransparency = 1
+miniGlow.BackgroundColor3 = C.Green
+miniGlow.BorderSizePixel = 2
+miniGlow.BorderColor3 = C.Green
+miniGlow.BorderTransparency = 0.7
+miniGlow.Parent = Mini
+Corner(miniGlow, 55)
+
+task.spawn(function()
+    while Mini and Mini.Parent do
+        Tween(miniGlow, 1.5, {BorderTransparency = 0.3})
+        task.wait(1.5)
+        Tween(miniGlow, 1.5, {BorderTransparency = 0.7})
+        task.wait(1.5)
+    end
+end)
+
+Mini.MouseEnter:Connect(function()
+    Tween(Mini, 0.15, {Size = UDim2.fromOffset(75,75), TextColor3 = C.White})
+end)
+Mini.MouseLeave:Connect(function()
+    Tween(Mini, 0.15, {Size = UDim2.fromOffset(70,70), TextColor3 = C.Green})
+end)
+
 Mini.MouseButton1Click:Connect(function()
-    State.isMinimized = false
     Mini.Visible = false
     Main.Visible = true
-    Main.Size = UDim2.fromOffset(200,200)
+    Main.Size = UDim2.fromOffset(200, 200)
     Main.BackgroundTransparency = 1
-    Tween(Main, 0.4, {Size = UDim2.fromOffset(470,540), BackgroundTransparency = 0}, Enum.EasingStyle.Back)
+    Tween(Main, 0.4, {Size = UDim2.fromOffset(470, 540), BackgroundTransparency = 0}, Enum.EasingStyle.Back)
 end)
 
 --==================================================
@@ -1006,7 +947,6 @@ end)
 --==================================================
 
 MinBtn.MouseButton1Click:Connect(function()
-    State.isMinimized = true
     Tween(Main, 0.3, {Size = UDim2.fromOffset(200,200), BackgroundTransparency = 1})
     task.wait(0.3)
     Main.Visible = false
@@ -1029,8 +969,8 @@ FullBtn.MouseButton1Click:Connect(function()
     else
         FullBtn.Text = "□"
         Tween(Main, 0.4, {
-            Size = UDim2.fromOffset(470,540),
-            Position = UDim2.fromScale(0.5,0.5)
+            Size = UDim2.fromOffset(470, 540),
+            Position = UDim2.fromScale(0.5, 0.5)
         })
     end
 end)
@@ -1091,8 +1031,6 @@ end)
 -- FRIENDS КНОПКИ
 --==================================================
 
-local friendConnections = {}
-
 FriendConfirm.MouseButton1Click:Connect(function()
     local name = FriendInfoName.Text
     for _, plr in pairs(Players:GetPlayers()) do
@@ -1111,7 +1049,7 @@ FriendCancel.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- АИМ ЛОГИКА
+-- АИМ
 --==================================================
 
 local raycastParams = RaycastParams.new()
@@ -1284,11 +1222,10 @@ end)
 --==================================================
 
 RunService.Heartbeat:Connect(function()
-    if LoaderParticles and LoaderParticles.Update then
-        LoaderParticles:Update()
-    end
-    if MenuParticles and MenuParticles.Update then
-        MenuParticles:Update()
+    for _, system in ipairs(ParticleSystems) do
+        if system and system.Update then
+            system:Update()
+        end
     end
 end)
 
@@ -1301,4 +1238,4 @@ end)
 --==================================================
 
 UpdateStatus()
-print("NOVA ULTIMATE v5.0 LOADED - ТЫ АХУЕЕШЬ, БРАТАН!")
+print("NOVA v2.55.1 ULTIMATE LOADED - АХУЕЕШЬ, БРАТАН!")
