@@ -25,9 +25,7 @@ local Colors = {
 
 
 
---------------------------------------------------
--- BACKGROUND
---------------------------------------------------
+-- задний фон
 
 local Background = Instance.new("Frame")
 Background.Size = UDim2.fromScale(1,1)
@@ -36,9 +34,7 @@ Background.Parent = Gui
 
 
 
---------------------------------------------------
--- PARTICLES
---------------------------------------------------
+-- частицы
 
 local ParticleFolder = Instance.new("Folder")
 ParticleFolder.Parent = Background
@@ -144,9 +140,7 @@ end)
 
 
 
---------------------------------------------------
--- TITLE
---------------------------------------------------
+-- частицы
 
 local Title=Instance.new("TextLabel")
 Title.Size=UDim2.fromOffset(500,80)
@@ -177,9 +171,7 @@ TweenService:Create(
 
 
 
---------------------------------------------------
--- TERMINAL
---------------------------------------------------
+-- типо терминал
 
 local Terminal=Instance.new("TextLabel")
 
@@ -239,9 +231,7 @@ end)
 
 
 
---------------------------------------------------
--- FADE READY
---------------------------------------------------
+-- хз что 
 
 task.spawn(function()
 
