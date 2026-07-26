@@ -1,6 +1,5 @@
 --==================================================
--- NOVA PREMIUM v7.0
--- ПОЛНЫЙ GUI С АНИМАЦИЯМИ И ЧАСТИЦАМИ
+-- NOVA PREMIUM v9.0 (FULL REWORK)
 --==================================================
 
 local Players = game:GetService("Players")
@@ -8,6 +7,9 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local GuiService = game:GetService("GuiService")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
@@ -27,23 +29,54 @@ Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 Gui.Parent = PlayerGui
 
 --==================================================
--- COLORS
+-- СОХРАНЕНИЕ НАСТРОЕК
+--==================================================
+
+local function SaveSettings()
+    if writefile then
+        local data = {
+            Config = Config,
+            Friends = State.friends,
+        }
+        writefile("NovaSettings.json", HttpService:JSONEncode(data))
+    end
+end
+
+local function LoadSettings()
+    if isfile and isfile("NovaSettings.json") then
+        local data = HttpService:JSONDecode(readfile("NovaSettings.json"))
+        if data then
+            if data.Config then
+                for k, v in pairs(data.Config) do
+                    Config[k] = v
+                end
+            end
+            if data.Friends then
+                State.friends = data.Friends
+            end
+        end
+    end
+end
+
+--==================================================
+-- COLORS (PREMIUM GLASS THEME)
 --==================================================
 
 local C = {
-    Black = Color3.fromRGB(5,5,5),
-    Panel = Color3.fromRGB(12,12,14),
-    Dark = Color3.fromRGB(20,20,24),
-    White = Color3.fromRGB(235,235,240),
-    Gray = Color3.fromRGB(130,130,140),
-    Green = Color3.fromRGB(100,255,140),
-    Red = Color3.fromRGB(255,70,70),
-    GreenDim = Color3.fromRGB(15,50,25),
-    Glow = Color3.fromRGB(80,255,130),
+    Black = Color3.fromRGB(5, 5, 8),
+    Panel = Color3.fromRGB(12, 12, 18),
+    Dark = Color3.fromRGB(20, 20, 28),
+    White = Color3.fromRGB(240, 240, 245),
+    Gray = Color3.fromRGB(130, 130, 150),
+    Green = Color3.fromRGB(80, 255, 130),
+    Red = Color3.fromRGB(255, 70, 70),
+    GreenDim = Color3.fromRGB(15, 50, 25),
+    Glow = Color3.fromRGB(80, 255, 130, 0.4),
+    Glass = Color3.fromRGB(255, 255, 255, 0.05),
 }
 
 --==================================================
--- STATE & CONFIG
+-- STATE
 --==================================================
 
 local State = {
@@ -61,7 +94,14 @@ local State = {
     isFullscreen = false,
     readyProcessed = false,
     isMinimized = false,
+    searchQuery = "",
+    renderConn = nil,
+    heartbeatConn = nil,
 }
+
+--==================================================
+-- CONFIG
+--==================================================
 
 local Config = {
     AimPart = "Head",
@@ -78,110 +118,137 @@ local Config = {
 -- UTILS
 --==================================================
 
-local function Corner(obj,r)
+local function Corner(obj, r)
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0,r)
+    c.CornerRadius = UDim.new(0, r)
     c.Parent = obj
+    return c
 end
 
-local function Tween(obj,time,data,style)
-    TweenService:Create(
-        obj,
-        TweenInfo.new(time, style or Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-        data
-    ):Play()
+local function Tween(obj, time, data, style)
+    local s = style or Enum.EasingStyle.Quint
+    TweenService:Create(obj, TweenInfo.new(time, s, Enum.EasingDirection.Out), data):Play()
+end
+
+local function TweenIn(obj, time, data, style)
+    local s = style or Enum.EasingStyle.Quint
+    TweenService:Create(obj, TweenInfo.new(time, s, Enum.EasingDirection.In), data):Play()
+end
+
+local function GlassEffect(obj)
+    local g = Instance.new("Frame")
+    g.Size = UDim2.fromScale(1, 1)
+    g.BackgroundColor3 = C.Glass
+    g.BackgroundTransparency = 0.9
+    g.BorderSizePixel = 0
+    g.ZIndex = obj.ZIndex + 1
+    g.Parent = obj
+    Corner(g, 22)
+    return g
 end
 
 --==================================================
--- PARTICLE SYSTEM (ПОЛНОЦЕННАЯ)
+-- PARTICLE SYSTEM (ПРОФЕССИОНАЛЬНЫЙ)
 --==================================================
 
 local ParticleSystems = {}
 
 local function CreateParticleSystem(parent, count, color, speed, sizeRange)
     local container = Instance.new("Frame")
-    container.Size = UDim2.fromScale(1,1)
+    container.Size = UDim2.fromScale(1, 1)
     container.BackgroundTransparency = 1
     container.ZIndex = 1
     container.Parent = parent
-    
+
     local particles = {}
     local col = color or C.Green
-    local spd = speed or 0.008
-    
+    local spd = speed or 0.012
+
     for i = 1, count do
         local p = Instance.new("Frame")
-        local size = math.random(sizeRange[1] or 2, sizeRange[2] or 5)
-        p.Size = UDim2.fromOffset(size,size)
+        local size = math.random(sizeRange[1] or 2, sizeRange[2] or 6)
+        p.Size = UDim2.fromOffset(size, size)
         p.Position = UDim2.fromScale(math.random(), math.random())
         p.BackgroundColor3 = col
-        p.BackgroundTransparency = 0.2 + math.random() * 0.5
+        p.BackgroundTransparency = 0.1 + math.random() * 0.6
         p.ZIndex = 2
-        Corner(p,10)
+        Corner(p, 10)
         p.Parent = container
-        
+
         local angle = math.random() * 2 * math.pi
-        local speedMul = 0.5 + math.random() * 1.5
-        
+        local speedMul = 0.5 + math.random() * 2
+
         table.insert(particles, {
             frame = p,
-            speedX = math.cos(angle) * spd * speedMul * 2,
-            speedY = math.sin(angle) * spd * speedMul * 2,
+            speedX = math.cos(angle) * spd * speedMul * 3,
+            speedY = math.sin(angle) * spd * speedMul * 3,
             phase = math.random() * 2 * math.pi,
             startX = p.Position.X.Scale,
             startY = p.Position.Y.Scale,
-            transSpeed = 0.05 + math.random() * 0.3,
-            rotSpeed = (math.random() - 0.5) * 0.02,
+            transSpeed = 0.05 + math.random() * 0.4,
+            rotSpeed = (math.random() - 0.5) * 0.03,
             rot = math.random() * 360,
+            size = size,
+            minSize = sizeRange[1],
+            maxSize = sizeRange[2],
         })
     end
-    
+
     local system = {
         container = container,
         particles = particles,
+        active = true,
         Update = function(self)
+            if not self.active then return end
             local time = os.clock()
             for _, data in ipairs(self.particles) do
                 if data.frame and data.frame.Parent then
-                    local offsetX = math.sin(time * 0.2 + data.phase) * data.speedX * 25
-                    local offsetY = math.cos(time * 0.35 + data.phase) * data.speedY * 25
+                    local offsetX = math.sin(time * 0.25 + data.phase) * data.speedX * 35
+                    local offsetY = math.cos(time * 0.4 + data.phase) * data.speedY * 35
                     data.frame.Position = UDim2.new(
                         data.startX + offsetX,
                         0,
                         data.startY + offsetY,
                         0
                     )
-                    data.frame.BackgroundTransparency = 0.2 + math.sin(time * data.transSpeed + data.phase) * 0.3 + 0.3
-                    data.rot = data.rot + data.rotSpeed * 2
+                    data.frame.BackgroundTransparency = 0.1 + math.sin(time * data.transSpeed + data.phase) * 0.35 + 0.35
+                    data.rot = data.rot + data.rotSpeed * 3
                     data.frame.Rotation = data.rot
+                    local s = data.minSize + (data.maxSize - data.minSize) * (0.5 + 0.5 * math.sin(time * 0.3 + data.phase))
+                    data.frame.Size = UDim2.fromOffset(s, s)
                 end
             end
         end,
         Destroy = function(self)
+            self.active = false
             if self.container then self.container:Destroy() end
         end
     }
-    
+
     table.insert(ParticleSystems, system)
     return system
 end
 
 --==================================================
--- LOADER (С ЧАСТИЦАМИ И АНИМАЦИЕЙ)
+-- LOADER
 --==================================================
 
 local Loader = Instance.new("Frame")
-Loader.Size = UDim2.fromScale(1,1)
+Loader.Size = UDim2.fromScale(1, 1)
 Loader.BackgroundColor3 = C.Black
 Loader.ZIndex = 100
 Loader.Parent = Gui
 
--- Частицы на загрузке (60 шт)
-local LoaderParticles = CreateParticleSystem(Loader, 60, C.Green, 0.015, {2,5})
+-- Glass overlay for loader
+local LoaderGlass = GlassEffect(Loader)
+LoaderGlass.ZIndex = 99
+
+-- Частицы на загрузке
+local LoaderParticles = CreateParticleSystem(Loader, 70, C.Green, 0.018, {2, 6})
 
 -- Glow Pulse
 local GlowOverlay = Instance.new("Frame")
-GlowOverlay.Size = UDim2.fromScale(1,1)
+GlowOverlay.Size = UDim2.fromScale(1, 1)
 GlowOverlay.BackgroundTransparency = 1
 GlowOverlay.BackgroundColor3 = C.Glow
 GlowOverlay.ZIndex = 101
@@ -189,17 +256,17 @@ GlowOverlay.Parent = Loader
 
 task.spawn(function()
     while Loader and Loader.Parent do
-        Tween(GlowOverlay, 2.5, {BackgroundTransparency = 0.92})
+        Tween(GlowOverlay, 2.5, { BackgroundTransparency = 0.9 })
         task.wait(2.5)
-        Tween(GlowOverlay, 2.5, {BackgroundTransparency = 1})
+        Tween(GlowOverlay, 2.5, { BackgroundTransparency = 1 })
         task.wait(2.5)
     end
 end)
 
 -- Terminal
 local Terminal = Instance.new("TextLabel")
-Terminal.Size = UDim2.new(0.85,0,0.45,0)
-Terminal.Position = UDim2.new(0.075,0,0.12,0)
+Terminal.Size = UDim2.new(0.85, 0, 0.45, 0)
+Terminal.Position = UDim2.new(0.075, 0, 0.12, 0)
 Terminal.BackgroundTransparency = 1
 Terminal.TextColor3 = C.Green
 Terminal.Font = Enum.Font.Code
@@ -208,6 +275,7 @@ Terminal.TextXAlignment = Enum.TextXAlignment.Left
 Terminal.TextYAlignment = Enum.TextYAlignment.Top
 Terminal.ZIndex = 110
 Terminal.Parent = Loader
+Corner(Terminal, 0)
 
 local function TypeLine(text)
     Terminal.Text = Terminal.Text .. "\n"
@@ -221,7 +289,7 @@ local bootComplete = false
 
 task.spawn(function()
     local lines = {
-        "$ NOVA SYSTEM BOOT v7.0",
+        "$ NOVA SYSTEM BOOT v9.0",
         "$ Loading core modules...",
         "$ Initializing particle engine...",
         "$ Checking security layer...",
@@ -243,15 +311,15 @@ end)
 --==================================================
 
 local ReadyFrame = Instance.new("Frame")
-ReadyFrame.Size = UDim2.new(0.55,0,0,50)
-ReadyFrame.Position = UDim2.new(0.075,0,0.7,0)
+ReadyFrame.Size = UDim2.new(0.55, 0, 0, 50)
+ReadyFrame.Position = UDim2.new(0.075, 0, 0.7, 0)
 ReadyFrame.BackgroundTransparency = 1
 ReadyFrame.ZIndex = 150
 ReadyFrame.Visible = false
 ReadyFrame.Parent = Loader
 
 local Prefix = Instance.new("TextLabel")
-Prefix.Size = UDim2.new(0,40,1,0)
+Prefix.Size = UDim2.new(0, 40, 1, 0)
 Prefix.BackgroundTransparency = 1
 Prefix.Text = "~$"
 Prefix.TextColor3 = C.Green
@@ -262,10 +330,10 @@ Prefix.ZIndex = 151
 Prefix.Parent = ReadyFrame
 
 local InputLine = Instance.new("TextBox")
-InputLine.Size = UDim2.new(1,-45,1,0)
-InputLine.Position = UDim2.new(0,45,0,0)
+InputLine.Size = UDim2.new(1, -45, 1, 0)
+InputLine.Position = UDim2.new(0, 45, 0, 0)
 InputLine.BackgroundColor3 = C.Dark
-InputLine.BackgroundTransparency = 0.3
+InputLine.BackgroundTransparency = 0.5
 InputLine.Text = ""
 InputLine.PlaceholderText = " type y or n..."
 InputLine.PlaceholderColor3 = C.Gray
@@ -277,62 +345,31 @@ InputLine.ZIndex = 151
 Corner(InputLine, 8)
 InputLine.Parent = ReadyFrame
 
--- ЗАПУСК МЕНЮ С АНИМАЦИЕЙ
-local function StartMenu()
-    if State.readyProcessed then return end
-    State.readyProcessed = true
-    
-    -- Анимация исчезновения загрузчика
-    Tween(Loader, 0.8, {BackgroundTransparency = 1})
-    LoaderParticles:Destroy()
-    task.wait(0.8)
-    Loader.Visible = false
-    
-    -- Появление меню с анимацией
-    Main.Visible = true
-    Main.BackgroundTransparency = 1
-    Main.Size = UDim2.new(0, 300, 0, 350)
-    
-    Tween(Main, 0.6, {
-        BackgroundTransparency = 0,
-        Size = UDim2.new(0, 470, 0, 540)
-    }, Enum.EasingStyle.Back)
-    
-    -- Появление элементов по очереди
-    task.wait(0.2)
-    Tween(Header, 0.3, {BackgroundTransparency = 0})
-    task.wait(0.1)
-    Tween(Tabs, 0.3, {BackgroundTransparency = 0})
-    task.wait(0.1)
-    Tween(SoftwareFrame, 0.3, {BackgroundTransparency = 0})
-    
-    SwitchTab("software")
-end
+-- GLASS эффект на поле ввода
+local InputGlass = GlassEffect(InputLine)
+InputGlass.ZIndex = 150
 
--- ПРОВЕРКА ОТВЕТА
 local function CheckAnswer()
-    local answer = string.lower(InputLine.Text)
-    if answer == "y" then
+    local answer = string.lower(string.gsub(InputLine.Text, "%s+", ""))
+    if answer == "y" or answer == "yes" then
         StartMenu()
-    elseif answer == "n" then
+    elseif answer == "n" or answer == "no" then
         InputLine.Text = ""
         InputLine.PlaceholderText = "cancelled"
     end
 end
 
--- ОЖИДАНИЕ ЗАГРУЗКИ
 task.spawn(function()
     while not bootComplete do
         task.wait(0.1)
     end
     ReadyFrame.Visible = true
-    ReadyFrame.Position = UDim2.new(0.075,0,0.76,0)
-    Tween(ReadyFrame, 0.6, {Position = UDim2.new(0.075,0,0.68,0)})
+    ReadyFrame.Position = UDim2.new(0.075, 0, 0.76, 0)
+    Tween(ReadyFrame, 0.6, { Position = UDim2.new(0.075, 0, 0.68, 0) })
     task.wait(0.3)
     InputLine:CaptureFocus()
 end)
 
--- ВВОД
 InputLine.FocusLost:Connect(function(enterPressed)
     if enterPressed then CheckAnswer() end
 end)
@@ -352,46 +389,125 @@ Loader.InputBegan:Connect(function(input)
 end)
 
 --==================================================
--- MAIN MENU (ПОЛНЫЙ GUI)
+-- MAIN MENU
 --==================================================
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 470, 0, 540)
+Main.Size = UDim2.new(0, 500, 0, 580)
 Main.Position = UDim2.fromScale(0.5, 0.5)
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
 Main.BackgroundColor3 = C.Panel
 Main.BackgroundTransparency = 1
 Main.Visible = false
 Main.ZIndex = 10
-Corner(Main, 22)
+Corner(Main, 24)
 Main.Parent = Gui
 
--- Частицы в меню (45 шт)
-local MenuParticles = CreateParticleSystem(Main, 45, C.GreenDim, 0.01, {2,4})
+-- Glass эффект для главного меню
+local MainGlass = GlassEffect(Main)
+MainGlass.ZIndex = 9
+
+-- Частицы в меню
+local MenuParticles = CreateParticleSystem(Main, 50, C.GreenDim, 0.012, {2, 5})
+
+--==================================================
+-- ЗАПУСК МЕНЮ (С АНИМАЦИЕЙ)
+--==================================================
+
+local function StartMenu()
+    if State.readyProcessed then return end
+    State.readyProcessed = true
+
+    Tween(Loader, 0.8, { BackgroundTransparency = 1 })
+    LoaderParticles:Destroy()
+    task.wait(0.8)
+    Loader.Visible = false
+
+    Main.Visible = true
+    Main.BackgroundTransparency = 1
+    Main.Size = UDim2.new(0, 300, 0, 350)
+
+    Tween(Main, 0.7, {
+        BackgroundTransparency = 0,
+        Size = UDim2.new(0, 500, 0, 580)
+    }, Enum.EasingStyle.Back)
+
+    task.wait(0.2)
+    Tween(Header, 0.3, { BackgroundTransparency = 0 })
+    task.wait(0.1)
+    Tween(Tabs, 0.3, { BackgroundTransparency = 0 })
+    task.wait(0.1)
+    Tween(SoftwareFrame, 0.3, { BackgroundTransparency = 0 })
+
+    SwitchTab("software")
+    UpdateStatus()
+end
+
+--==================================================
+-- ДЛЯ ПЕРЕНОСА ОКНА
+--==================================================
+
+local dragData = {
+    dragging = false,
+    startPos = nil,
+    startOffset = nil,
+}
+
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragData.dragging = true
+        dragData.startPos = input.Position
+        dragData.startOffset = Main.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragData.dragging then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragData.startPos
+            local vp = Camera.ViewportSize
+            local scaleX = Main.AbsoluteSize.X / vp.X
+            local scaleY = Main.AbsoluteSize.Y / vp.Y
+            Main.Position = UDim2.new(
+                0.5, dragData.startOffset.X.Offset + delta.X,
+                0.5, dragData.startOffset.Y.Offset + delta.Y
+            )
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragData.dragging = false
+    end
+end)
 
 --==================================================
 -- HEADER
 --==================================================
 
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1,0,0,52)
+Header.Size = UDim2.new(1, 0, 0, 52)
 Header.BackgroundColor3 = C.Dark
 Header.BackgroundTransparency = 0.5
 Header.ZIndex = 11
-Corner(Header, 22)
+Corner(Header, 24)
 Header.Parent = Main
+
+local HeaderGlass = GlassEffect(Header)
+HeaderGlass.ZIndex = 10
 
 local Title = Instance.new("TextLabel")
 Title.BackgroundTransparency = 1
-Title.Size = UDim2.new(1,0,1,0)
-Title.Text = "Nova v7.0"
+Title.Size = UDim2.new(1, 0, 1, 0)
+Title.Text = "NOVA v9.0"
 Title.Font = Enum.Font.Code
 Title.TextSize = 28
 Title.TextColor3 = C.White
 Title.Parent = Header
 
--- Кнопки хедера
-local function HeaderButton(text, x, action)
+-- Кнопки Header
+local function HeaderButton(text, x, callback, icon)
     local b = Instance.new("TextButton")
     b.Size = UDim2.fromOffset(40, 35)
     b.Position = UDim2.new(1, x, 0.5, -17)
@@ -404,44 +520,59 @@ local function HeaderButton(text, x, action)
     b.ZIndex = 12
     Corner(b, 12)
     b.Parent = Header
-    
+
     b.MouseEnter:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = C.GreenDim, TextColor3 = C.White})
+        Tween(b, 0.15, { BackgroundColor3 = C.GreenDim, TextColor3 = C.White })
     end)
     b.MouseLeave:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = C.Black, TextColor3 = C.Gray})
+        Tween(b, 0.15, { BackgroundColor3 = C.Black, TextColor3 = C.Gray })
     end)
-    
-    if action then
-        b.MouseButton1Click:Connect(action)
+
+    b.TouchTap:Connect(function()
+        if callback then callback() end
+    end)
+
+    if callback then
+        b.MouseButton1Click:Connect(callback)
     end
-    
+
     return b
 end
 
-local MinBtn = HeaderButton("─", -150, function()
+local function MinimizeAction()
     State.isMinimized = true
-    Tween(Main, 0.3, {Size = UDim2.fromOffset(200,200), BackgroundTransparency = 1})
+    if State.isFullscreen then
+        State.isFullscreen = false
+        FullBtn.Text = "□"
+    end
+    Tween(Main, 0.3, { Size = UDim2.fromOffset(200, 200), BackgroundTransparency = 1 })
     task.wait(0.3)
     Main.Visible = false
     Mini.Visible = true
-    Tween(Mini, 0.3, {Size = UDim2.fromOffset(80,80)})
-end)
+    Tween(Mini, 0.3, { Size = UDim2.fromOffset(80, 80) })
+end
 
-local FullBtn = HeaderButton("□", -100, function()
+local function FullscreenAction()
     State.isFullscreen = not State.isFullscreen
+    local vp = Camera.ViewportSize
     if State.isFullscreen then
         FullBtn.Text = "◻"
-        Tween(Main, 0.4, {Size = UDim2.new(0, 700, 0, 600), Position = UDim2.new(0.5, -350, 0.5, -300)})
+        Tween(Main, 0.4, {
+            Size = UDim2.new(0, vp.X - 40, 0, vp.Y - 40),
+            Position = UDim2.fromOffset(20, 20)
+        })
     else
         FullBtn.Text = "□"
-        Tween(Main, 0.4, {Size = UDim2.fromOffset(470, 540), Position = UDim2.fromScale(0.5, 0.5)})
+        Tween(Main, 0.4, {
+            Size = UDim2.new(0, 500, 0, 580),
+            Position = UDim2.fromScale(0.5, 0.5)
+        })
     end
-end)
+end
 
-local CloseBtn = HeaderButton("✕", -50, function()
-    Gui:Destroy()
-end)
+local MinBtn = HeaderButton("─", -150, MinimizeAction)
+local FullBtn = HeaderButton("□", -100, FullscreenAction)
+local CloseBtn = HeaderButton("✕", -50, function() Gui:Destroy() end)
 
 --==================================================
 -- TABS
@@ -469,24 +600,59 @@ local function Tab(text, callback)
     b.TextSize = 18
     Corner(b, 10)
     b.Parent = Tabs
-    
+
     b.MouseEnter:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = C.GreenDim, TextColor3 = C.White})
+        Tween(b, 0.15, { BackgroundColor3 = C.GreenDim, TextColor3 = C.White })
     end)
     b.MouseLeave:Connect(function()
-        Tween(b, 0.15, {BackgroundColor3 = C.Dark, TextColor3 = C.Gray})
+        Tween(b, 0.15, { BackgroundColor3 = C.Dark, TextColor3 = C.Gray })
     end)
-    
+
+    b.TouchTap:Connect(function()
+        if callback then callback() end
+    end)
+
     if callback then
         b.MouseButton1Click:Connect(callback)
     end
-    
+
     return b
 end
 
-local Software = Tab("SOFTWARE")
-local Settings = Tab("SETTINGS")
-local Friends = Tab("FRIENDS")
+local function SwitchTab(tab)
+    if tab == "software" then
+        Tween(SoftwareFrame, 0.2, { BackgroundTransparency = 0 })
+        Tween(SettingsFrame, 0.2, { BackgroundTransparency = 1 })
+        Tween(FriendsFrame, 0.2, { BackgroundTransparency = 1 })
+        task.wait(0.2)
+        SoftwareFrame.Visible = true
+        SettingsFrame.Visible = false
+        FriendsFrame.Visible = false
+        UpdateStatus()
+    elseif tab == "settings" then
+        SettingsFrame.Visible = true
+        Tween(SettingsFrame, 0.2, { BackgroundTransparency = 0 })
+        Tween(SoftwareFrame, 0.2, { BackgroundTransparency = 1 })
+        Tween(FriendsFrame, 0.2, { BackgroundTransparency = 1 })
+        task.wait(0.2)
+        SoftwareFrame.Visible = false
+        FriendsFrame.Visible = false
+    elseif tab == "friends" then
+        FriendsFrame.Visible = true
+        Tween(FriendsFrame, 0.2, { BackgroundTransparency = 0 })
+        Tween(SoftwareFrame, 0.2, { BackgroundTransparency = 1 })
+        Tween(SettingsFrame, 0.2, { BackgroundTransparency = 1 })
+        task.wait(0.2)
+        SoftwareFrame.Visible = false
+        SettingsFrame.Visible = false
+        UpdateFriendsList()
+    end
+    State.currentTab = tab
+end
+
+local Software = Tab("SOFTWARE", function() SwitchTab("software") end)
+local Settings = Tab("SETTINGS", function() SwitchTab("settings") end)
+local Friends = Tab("FRIENDS", function() SwitchTab("friends") end)
 
 --==================================================
 -- SOFTWARE TAB
@@ -539,6 +705,11 @@ TargetName.Parent = Target
 local LockLine = Label("LOCK : SEARCHING", 240)
 local HitLine = Label("HIT : HEAD", 270)
 
+local DistLine = Label("DISTANCE : 0", 300, 16)
+local FovLine = Label("FOV : 60", 328, 16)
+local FriendsLine = Label("FRIENDS : 0", 356, 16)
+local FpsLine = Label("FPS : 0", 384, 16)
+
 --==================================================
 -- BIG BUTTONS
 --==================================================
@@ -555,23 +726,46 @@ local function BigButton(text, y, color, callback)
     b.TextSize = 19
     Corner(b, 12)
     b.Parent = SoftwareFrame
-    
+
     b.MouseEnter:Connect(function()
-        Tween(b, 0.12, {BackgroundTransparency = 0.1, Size = UDim2.new(1.02, -60, 0, 50)})
+        Tween(b, 0.12, { BackgroundTransparency = 0.1, Size = UDim2.new(1.02, -60, 0, 50) })
     end)
     b.MouseLeave:Connect(function()
-        Tween(b, 0.12, {BackgroundTransparency = 0.3, Size = UDim2.new(1, -60, 0, 48)})
+        Tween(b, 0.12, { BackgroundTransparency = 0.3, Size = UDim2.new(1, -60, 0, 48) })
     end)
-    
+
+    b.TouchTap:Connect(function()
+        if callback then
+            Tween(b, 0.08, { Size = UDim2.new(0.98, -60, 0, 46) })
+            task.wait(0.08)
+            Tween(b, 0.08, { Size = UDim2.new(1, -60, 0, 48) })
+            callback()
+        end
+    end)
+
     if callback then
         b.MouseButton1Click:Connect(callback)
     end
-    
+
     return b
 end
 
-local EnableBtn = BigButton("◉ ENABLE", 330, Color3.fromRGB(20, 80, 40))
-local MinimizeBtn = BigButton("◯ MINIMIZE", 388, C.Dark)
+local function ToggleAim()
+    State.aimEnabled = not State.aimEnabled
+    EnableBtn.Text = State.aimEnabled and "◉ DISABLE" or "◉ ENABLE"
+    Tween(EnableBtn, 0.3, {
+        BackgroundColor3 = State.aimEnabled and Color3.fromRGB(60, 20, 20) or Color3.fromRGB(20, 80, 40)
+    })
+    UpdateStatus()
+    if not State.aimEnabled then
+        State.target = nil
+        State.targetCF = nil
+        State.smoothCF = nil
+    end
+end
+
+local EnableBtn = BigButton("◉ ENABLE", 330, Color3.fromRGB(20, 80, 40), ToggleAim)
+local MinimizeBtn = BigButton("◯ MINIMIZE", 388, C.Dark, MinimizeAction)
 
 --==================================================
 -- SETTINGS TAB
@@ -597,7 +791,7 @@ local function Slider(name, y, value, minVal, maxVal, format)
     t.Parent = SettingsFrame
 
     local bar = Instance.new("Frame")
-    bar.Position = UDim2.new(0, 0, 0, y+32)
+    bar.Position = UDim2.new(0, 0, 0, y + 32)
     bar.Size = UDim2.new(1, -80, 0, 6)
     bar.BackgroundColor3 = C.Dark
     Corner(bar, 4)
@@ -610,14 +804,14 @@ local function Slider(name, y, value, minVal, maxVal, format)
     fill.Parent = bar
 
     local val = Instance.new("TextLabel")
-    val.Position = UDim2.new(1, -50, 0, y+18)
+    val.Position = UDim2.new(1, -50, 0, y + 18)
     val.Size = UDim2.fromOffset(50, 30)
     val.BackgroundTransparency = 1
     val.Text = format and string.format(format, value) or tostring(value)
     val.Font = Enum.Font.Code
     val.TextColor3 = C.White
     val.Parent = SettingsFrame
-    
+
     return {
         bar = bar,
         fill = fill,
@@ -626,6 +820,8 @@ local function Slider(name, y, value, minVal, maxVal, format)
         maxVal = maxVal,
         value = value,
         format = format,
+        updateConn = nil,
+        endConn = nil,
         Update = function(self, newVal)
             local clamped = math.clamp(newVal, self.minVal, self.maxVal)
             self.value = clamped
@@ -657,24 +853,42 @@ local function Checkbox(text, y, callback)
     b.TextSize = 18
     b.TextXAlignment = Enum.TextXAlignment.Left
     b.Parent = SettingsFrame
-    
+
     b.MouseEnter:Connect(function()
-        Tween(b, 0.12, {TextColor3 = C.Green})
+        Tween(b, 0.12, { TextColor3 = C.Green })
     end)
     b.MouseLeave:Connect(function()
-        Tween(b, 0.12, {TextColor3 = C.White})
+        Tween(b, 0.12, { TextColor3 = C.White })
     end)
-    
+
+    b.TouchTap:Connect(function()
+        if callback then callback() end
+    end)
+
     if callback then
         b.MouseButton1Click:Connect(callback)
     end
-    
+
     return b
 end
 
-local KeepTargetChk = Checkbox("☐ Keep Target", 345)
-local IgnoreWallsChk = Checkbox("☐ Ignore Walls", 375)
-local AutoSwitchChk = Checkbox("☐ Auto Switch", 405)
+local KeepTargetChk = Checkbox("☐ Keep Target", 345, function()
+    Config.KeepTarget = not Config.KeepTarget
+    KeepTargetChk.Text = Config.KeepTarget and "☑ Keep Target" or "☐ Keep Target"
+    SaveSettings()
+end)
+
+local IgnoreWallsChk = Checkbox("☐ Ignore Walls", 375, function()
+    Config.IgnoreWalls = not Config.IgnoreWalls
+    IgnoreWallsChk.Text = Config.IgnoreWalls and "☑ Ignore Walls" or "☐ Ignore Walls"
+    SaveSettings()
+end)
+
+local AutoSwitchChk = Checkbox("☐ Auto Switch", 405, function()
+    Config.AutoSwitch = not Config.AutoSwitch
+    AutoSwitchChk.Text = Config.AutoSwitch and "☑ Auto Switch" or "☐ Auto Switch"
+    SaveSettings()
+end)
 
 --==================================================
 -- FRIENDS TAB
@@ -687,15 +901,36 @@ FriendsFrame.Size = SoftwareFrame.Size
 FriendsFrame.Position = SoftwareFrame.Position
 FriendsFrame.Parent = Main
 
+-- Search bar
+local SearchBar = Instance.new("TextBox")
+SearchBar.Size = UDim2.new(0.5, 0, 0, 32)
+SearchBar.Position = UDim2.new(0, 0, 0, 0)
+SearchBar.BackgroundColor3 = C.Dark
+SearchBar.BackgroundTransparency = 0.5
+SearchBar.Text = ""
+SearchBar.PlaceholderText = "🔍 Search players..."
+SearchBar.PlaceholderColor3 = C.Gray
+SearchBar.TextColor3 = C.White
+SearchBar.Font = Enum.Font.Code
+SearchBar.TextSize = 14
+Corner(SearchBar, 8)
+SearchBar.Parent = FriendsFrame
+
+SearchBar:GetPropertyChangedSignal("Text"):Connect(function()
+    State.searchQuery = SearchBar.Text:lower()
+    UpdateFriendsList()
+end)
+
 local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(0.52, 0, 1, 0)
+Scroll.Size = UDim2.new(0.52, 0, 1, -40)
+Scroll.Position = UDim2.new(0, 0, 0, 40)
 Scroll.CanvasSize = UDim2.new()
 Scroll.ScrollBarThickness = 4
 Scroll.BackgroundTransparency = 1
 Scroll.Parent = FriendsFrame
 
 local Layout2 = Instance.new("UIListLayout")
-Layout2.Padding = UDim.new(0, 8)
+Layout2.Padding = UDim.new(0, 6)
 Layout2.Parent = Scroll
 
 local FriendInfoPanel = Instance.new("Frame")
@@ -718,40 +953,231 @@ FriendInfoName.TextColor3 = C.White
 FriendInfoName.TextXAlignment = Enum.TextXAlignment.Left
 FriendInfoName.Parent = FriendInfoPanel
 
-local FriendInfoQuestion = Instance.new("TextLabel")
-FriendInfoQuestion.Size = UDim2.new(1, -20, 0, 25)
-FriendInfoQuestion.Position = UDim2.new(0, 10, 0, 50)
-FriendInfoQuestion.BackgroundTransparency = 1
-FriendInfoQuestion.Text = "Add to friends?"
-FriendInfoQuestion.Font = Enum.Font.Code
-FriendInfoQuestion.TextSize = 14
-FriendInfoQuestion.TextColor3 = C.Gray
-FriendInfoQuestion.TextXAlignment = Enum.TextXAlignment.Left
-FriendInfoQuestion.Parent = FriendInfoPanel
+local FriendInfoStatus = Instance.new("TextLabel")
+FriendInfoStatus.Size = UDim2.new(1, -20, 0, 25)
+FriendInfoStatus.Position = UDim2.new(0, 10, 0, 50)
+FriendInfoStatus.BackgroundTransparency = 1
+FriendInfoStatus.Text = "Friend: ❌"
+FriendInfoStatus.Font = Enum.Font.Code
+FriendInfoStatus.TextSize = 14
+FriendInfoStatus.TextColor3 = C.Gray
+FriendInfoStatus.TextXAlignment = Enum.TextXAlignment.Left
+FriendInfoStatus.Parent = FriendInfoPanel
 
 local FriendConfirm = Instance.new("TextButton")
-FriendConfirm.Size = UDim2.new(0.8, 0, 0, 40)
-FriendConfirm.Position = UDim2.new(0.1, 0, 0, 90)
+FriendConfirm.Size = UDim2.new(0.8, 0, 0, 38)
+FriendConfirm.Position = UDim2.new(0.1, 0, 0, 85)
 FriendConfirm.BackgroundColor3 = C.Green
 FriendConfirm.BackgroundTransparency = 0.3
-FriendConfirm.Text = "✓ CONFIRM"
+FriendConfirm.Text = "✓ ADD"
 FriendConfirm.TextColor3 = C.White
 FriendConfirm.Font = Enum.Font.Code
 FriendConfirm.TextSize = 16
 Corner(FriendConfirm, 12)
 FriendConfirm.Parent = FriendInfoPanel
 
+local FriendRemove = Instance.new("TextButton")
+FriendRemove.Size = UDim2.new(0.8, 0, 0, 38)
+FriendRemove.Position = UDim2.new(0.1, 0, 0, 130)
+FriendRemove.BackgroundColor3 = C.Red
+FriendRemove.BackgroundTransparency = 0.3
+FriendRemove.Text = "✕ REMOVE"
+FriendRemove.TextColor3 = C.White
+FriendRemove.Font = Enum.Font.Code
+FriendRemove.TextSize = 16
+Corner(FriendRemove, 12)
+FriendRemove.Parent = FriendInfoPanel
+
 local FriendCancel = Instance.new("TextButton")
-FriendCancel.Size = UDim2.new(0.8, 0, 0, 40)
-FriendCancel.Position = UDim2.new(0.1, 0, 0, 140)
-FriendCancel.BackgroundColor3 = C.Red
+FriendCancel.Size = UDim2.new(0.8, 0, 0, 38)
+FriendCancel.Position = UDim2.new(0.1, 0, 0, 175)
+FriendCancel.BackgroundColor3 = C.Dark
 FriendCancel.BackgroundTransparency = 0.3
-FriendCancel.Text = "✕ CANCEL"
+FriendCancel.Text = "✕ CLOSE"
 FriendCancel.TextColor3 = C.White
 FriendCancel.Font = Enum.Font.Code
 FriendCancel.TextSize = 16
 Corner(FriendCancel, 12)
 FriendCancel.Parent = FriendInfoPanel
+
+local selectedFriend = nil
+
+local function UpdateFriendsList()
+    for _, child in pairs(Scroll:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    local players = {}
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= Player then
+            local nameLower = plr.Name:lower()
+            if State.searchQuery == "" or string.find(nameLower, State.searchQuery) then
+                table.insert(players, plr)
+            end
+        end
+    end
+
+    if #players == 0 then
+        local empty = Instance.new("TextLabel")
+        empty.Size = UDim2.new(1, 0, 0, 30)
+        empty.BackgroundTransparency = 1
+        empty.Text = State.searchQuery ~= "" and "No players found" or "No players in server"
+        empty.TextColor3 = C.Gray
+        empty.Font = Enum.Font.Code
+        empty.TextSize = 14
+        empty.Parent = Scroll
+        Scroll.CanvasSize = UDim2.new(0, 0, 0, 40)
+        return
+    end
+
+    table.sort(players, function(a, b) return a.Name < b.Name end)
+
+    for _, plr in ipairs(players) do
+        local isFriend = false
+        for _, f in ipairs(State.friends) do
+            if f == plr then isFriend = true break end
+        end
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 0, 40)
+        btn.BackgroundColor3 = isFriend and Color3.fromRGB(20, 60, 30) or C.Dark
+        btn.BackgroundTransparency = 0.5
+        btn.BorderSizePixel = 0
+        btn.Parent = Scroll
+        Corner(btn, 8)
+
+        btn.MouseEnter:Connect(function()
+            Tween(btn, 0.12, { BackgroundTransparency = 0.2 })
+        end)
+        btn.MouseLeave:Connect(function()
+            Tween(btn, 0.12, { BackgroundTransparency = 0.5 })
+        end)
+
+        -- Avatar
+        local avatar = Instance.new("ImageLabel")
+        avatar.Size = UDim2.fromOffset(32, 32)
+        avatar.Position = UDim2.new(0, 4, 0.5, -16)
+        avatar.BackgroundColor3 = C.Dark
+        avatar.BorderSizePixel = isFriend and 2 or 0
+        avatar.BorderColor3 = C.Green
+        Corner(avatar, 16)
+        pcall(function()
+            avatar.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+        end)
+        avatar.Parent = btn
+
+        local name = Instance.new("TextLabel")
+        name.Size = UDim2.new(0.6, 0, 1, 0)
+        name.Position = UDim2.new(0, 44, 0, 0)
+        name.BackgroundTransparency = 1
+        name.Text = plr.Name
+        name.TextColor3 = isFriend and C.Green or C.White
+        name.Font = Enum.Font.Code
+        name.TextSize = 15
+        name.TextXAlignment = Enum.TextXAlignment.Left
+        name.Parent = btn
+
+        local status = Instance.new("TextLabel")
+        status.Size = UDim2.new(0.15, 0, 1, 0)
+        status.Position = UDim2.new(0.85, 0, 0, 0)
+        status.BackgroundTransparency = 1
+        status.Text = isFriend and "✓" or "+"
+        status.TextColor3 = isFriend and C.Green or C.Gray
+        status.Font = Enum.Font.Code
+        status.TextSize = 22
+        status.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+            selectedFriend = plr
+            FriendInfoName.Text = plr.Name
+            FriendInfoStatus.Text = "Friend: " .. (isFriend and "✅" or "❌")
+            FriendInfoPanel.Visible = true
+            FriendInfoPanel.BackgroundTransparency = 1
+            FriendInfoPanel.Position = UDim2.new(0.58, 0, 0, 0)
+            Tween(FriendInfoPanel, 0.3, { BackgroundTransparency = 0, Position = UDim2.new(0.55, 0, 0, 0) })
+        end)
+
+        btn.TouchTap:Connect(function()
+            selectedFriend = plr
+            FriendInfoName.Text = plr.Name
+            FriendInfoStatus.Text = "Friend: " .. (isFriend and "✅" or "❌")
+            FriendInfoPanel.Visible = true
+            FriendInfoPanel.BackgroundTransparency = 1
+            FriendInfoPanel.Position = UDim2.new(0.58, 0, 0, 0)
+            Tween(FriendInfoPanel, 0.3, { BackgroundTransparency = 0, Position = UDim2.new(0.55, 0, 0, 0) })
+        end)
+    end
+
+    Layout2:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout2.AbsoluteContentSize.Y + 10)
+    end)
+    task.wait()
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout2.AbsoluteContentSize.Y + 10)
+end
+
+FriendConfirm.MouseButton1Click:Connect(function()
+    if not selectedFriend then return end
+    local isFriend = false
+    for _, f in ipairs(State.friends) do
+        if f == selectedFriend then isFriend = true break end
+    end
+    if not isFriend then
+        table.insert(State.friends, selectedFriend)
+        UpdateFriendsList()
+        UpdateStatus()
+        SaveSettings()
+        FriendInfoPanel.Visible = false
+    end
+end)
+
+FriendRemove.MouseButton1Click:Connect(function()
+    if not selectedFriend then return end
+    for i, f in ipairs(State.friends) do
+        if f == selectedFriend then
+            table.remove(State.friends, i)
+            UpdateFriendsList()
+            UpdateStatus()
+            SaveSettings()
+            FriendInfoPanel.Visible = false
+            break
+        end
+    end
+end)
+
+FriendCancel.MouseButton1Click:Connect(function()
+    FriendInfoPanel.Visible = false
+end)
+
+--==================================================
+-- UPDATE FUNCTIONS
+--==================================================
+
+local fpsCounter = 0
+local fpsTime = 0
+
+local function UpdateStatus()
+    local targetText = State.target and State.target.Name or "None"
+    local statusText = State.aimEnabled and "ACTIVE" or "READY"
+    local lockText = "SEARCHING"
+    if State.aimEnabled then
+        lockText = State.target and "LOCKED" or "SEARCHING"
+    else
+        lockText = "DISABLED"
+    end
+    local hitText = Config.AimPart
+    local dist = State.target and math.round((State.target.Character and State.target.Character.PrimaryPart and State.target.Character.PrimaryPart.Position - Player.Character.PrimaryPart.Position).Magnitude) or 0
+
+    StatusLine.Text = "● STATUS : " .. statusText
+    TargetName.Text = targetText
+    LockLine.Text = "LOCK : " .. lockText
+    HitLine.Text = "HIT : " .. hitText
+    DistLine.Text = "DISTANCE : " .. dist
+    FovLine.Text = "FOV : " .. Config.FOV
+    FriendsLine.Text = "FRIENDS : " .. #State.friends
+    TargetName.TextColor3 = State.target and C.Green or C.Gray
+end
 
 --==================================================
 -- MINI LOGO
@@ -769,9 +1195,12 @@ Mini.ZIndex = 20
 Corner(Mini, 50)
 Mini.Parent = Gui
 
+local MiniGlass = GlassEffect(Mini)
+MiniGlass.ZIndex = 19
+
 local miniGlow = Instance.new("Frame")
-miniGlow.Size = UDim2.new(1.1, 0, 1.1, 0)
-miniGlow.Position = UDim2.new(-0.05, -0.05, -0.05, -0.05)
+miniGlow.Size = UDim2.new(1.2, 0, 1.2, 0)
+miniGlow.Position = UDim2.new(-0.1, -0.1, -0.1, -0.1)
 miniGlow.BackgroundTransparency = 1
 miniGlow.BackgroundColor3 = C.Green
 miniGlow.BorderSizePixel = 2
@@ -782,231 +1211,46 @@ Corner(miniGlow, 55)
 
 task.spawn(function()
     while Mini and Mini.Parent do
-        Tween(miniGlow, 1.5, {BorderTransparency = 0.3})
+        Tween(miniGlow, 1.5, { BorderTransparency = 0.3 })
         task.wait(1.5)
-        Tween(miniGlow, 1.5, {BorderTransparency = 0.7})
+        Tween(miniGlow, 1.5, { BorderTransparency = 0.7 })
         task.wait(1.5)
     end
 end)
 
 Mini.MouseEnter:Connect(function()
-    Tween(Mini, 0.15, {Size = UDim2.fromOffset(75,75), TextColor3 = C.White})
+    Tween(Mini, 0.15, { Size = UDim2.fromOffset(75, 75), TextColor3 = C.White })
 end)
 Mini.MouseLeave:Connect(function()
-    Tween(Mini, 0.15, {Size = UDim2.fromOffset(70,70), TextColor3 = C.Green})
+    Tween(Mini, 0.15, { Size = UDim2.fromOffset(70, 70), TextColor3 = C.Green })
 end)
 
 Mini.MouseButton1Click:Connect(function()
     Mini.Visible = false
     Main.Visible = true
+    State.isMinimized = false
     Main.Size = UDim2.fromOffset(200, 200)
     Main.BackgroundTransparency = 1
-    Tween(Main, 0.4, {Size = UDim2.fromOffset(470, 540), BackgroundTransparency = 0}, Enum.EasingStyle.Back)
+    Tween(Main, 0.4, { Size = UDim2.new(0, 500, 0, 580), BackgroundTransparency = 0 }, Enum.EasingStyle.Back)
+end)
+
+Mini.TouchTap:Connect(function()
+    Mini.Visible = false
+    Main.Visible = true
+    State.isMinimized = false
+    Main.Size = UDim2.fromOffset(200, 200)
+    Main.BackgroundTransparency = 1
+    Tween(Main, 0.4, { Size = UDim2.new(0, 500, 0, 580), BackgroundTransparency = 0 }, Enum.EasingStyle.Back)
 end)
 
 --==================================================
--- UPDATE FUNCTIONS
---==================================================
-
-local function UpdateStatus()
-    local targetText = State.target and State.target.Name or "None"
-    local statusText = State.aimEnabled and "ACTIVE" or "READY"
-    local lockText = "SEARCHING"
-    if State.aimEnabled then
-        lockText = State.target and "LOCKED" or "SEARCHING"
-    else
-        lockText = "DISABLED"
-    end
-    local hitText = Config.AimPart
-    
-    StatusLine.Text = "● STATUS : " .. statusText
-    TargetName.Text = targetText
-    LockLine.Text = "LOCK : " .. lockText
-    HitLine.Text = "HIT : " .. hitText
-    TargetName.TextColor3 = State.target and C.Green or C.Gray
-end
-
-local function UpdateFriendsList()
-    for _, child in pairs(Scroll:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
-    
-    local players = {}
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= Player then
-            table.insert(players, plr)
-        end
-    end
-    
-    if #players == 0 then
-        local empty = Instance.new("TextLabel")
-        empty.Size = UDim2.new(1, 0, 0, 30)
-        empty.BackgroundTransparency = 1
-        empty.Text = "No players in server"
-        empty.TextColor3 = C.Gray
-        empty.Font = Enum.Font.Code
-        empty.TextSize = 14
-        empty.Parent = Scroll
-        Scroll.CanvasSize = UDim2.new(0, 0, 0, 40)
-        return
-    end
-    
-    table.sort(players, function(a,b) return a.Name < b.Name end)
-    
-    for _, plr in ipairs(players) do
-        local isFriend = false
-        for _, f in ipairs(State.friends) do
-            if f == plr then isFriend = true break end
-        end
-        
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 40)
-        btn.BackgroundColor3 = isFriend and Color3.fromRGB(20,60,30) or C.Dark
-        btn.BackgroundTransparency = 0.5
-        btn.BorderSizePixel = 0
-        btn.Parent = Scroll
-        Corner(btn, 8)
-        
-        btn.MouseEnter:Connect(function()
-            Tween(btn, 0.12, {BackgroundTransparency = 0.2})
-        end)
-        btn.MouseLeave:Connect(function()
-            Tween(btn, 0.12, {BackgroundTransparency = 0.5})
-        end)
-        
-        -- Avatar
-        local avatar = Instance.new("ImageLabel")
-        avatar.Size = UDim2.fromOffset(32, 32)
-        avatar.Position = UDim2.new(0, 4, 0.5, -16)
-        avatar.BackgroundColor3 = C.Dark
-        avatar.BorderSizePixel = isFriend and 2 or 0
-        avatar.BorderColor3 = C.Green
-        Corner(avatar, 16)
-        pcall(function()
-            avatar.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-        end)
-        avatar.Parent = btn
-        
-        local name = Instance.new("TextLabel")
-        name.Size = UDim2.new(0.6, 0, 1, 0)
-        name.Position = UDim2.new(0, 44, 0, 0)
-        name.BackgroundTransparency = 1
-        name.Text = plr.Name
-        name.TextColor3 = isFriend and C.Green or C.White
-        name.Font = Enum.Font.Code
-        name.TextSize = 16
-        name.TextXAlignment = Enum.TextXAlignment.Left
-        name.Parent = btn
-        
-        local status = Instance.new("TextLabel")
-        status.Size = UDim2.new(0.2, 0, 1, 0)
-        status.Position = UDim2.new(0.8, 0, 0, 0)
-        status.BackgroundTransparency = 1
-        status.Text = isFriend and "✓" or "+"
-        status.TextColor3 = isFriend and C.Green or C.Gray
-        status.Font = Enum.Font.Code
-        status.TextSize = 22
-        status.Parent = btn
-        
-        btn.MouseButton1Click:Connect(function()
-            if isFriend then
-                for i, f in ipairs(State.friends) do
-                    if f == plr then
-                        table.remove(State.friends, i)
-                        break
-                    end
-                end
-                UpdateFriendsList()
-                UpdateStatus()
-            else
-                FriendInfoName.Text = plr.Name
-                FriendInfoPanel.Visible = true
-                FriendInfoPanel.BackgroundTransparency = 1
-                FriendInfoPanel.Position = UDim2.new(0.58, 0, 0, 0)
-                Tween(FriendInfoPanel, 0.3, {BackgroundTransparency = 0, Position = UDim2.new(0.55, 0, 0, 0)})
-            end
-        end)
-    end
-    
-    Layout2:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout2.AbsoluteContentSize.Y + 10)
-    end)
-    task.wait()
-    Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout2.AbsoluteContentSize.Y + 10)
-end
-
---==================================================
--- TAB SWITCHING
---==================================================
-
-local function SwitchTab(tab)
-    if tab == "software" then
-        Tween(SoftwareFrame, 0.2, {BackgroundTransparency = 0})
-        Tween(SettingsFrame, 0.2, {BackgroundTransparency = 1})
-        Tween(FriendsFrame, 0.2, {BackgroundTransparency = 1})
-        task.wait(0.2)
-        SoftwareFrame.Visible = true
-        SettingsFrame.Visible = false
-        FriendsFrame.Visible = false
-    elseif tab == "settings" then
-        SettingsFrame.Visible = true
-        Tween(SettingsFrame, 0.2, {BackgroundTransparency = 0})
-        Tween(SoftwareFrame, 0.2, {BackgroundTransparency = 1})
-        Tween(FriendsFrame, 0.2, {BackgroundTransparency = 1})
-        task.wait(0.2)
-        SoftwareFrame.Visible = false
-        FriendsFrame.Visible = false
-    elseif tab == "friends" then
-        FriendsFrame.Visible = true
-        Tween(FriendsFrame, 0.2, {BackgroundTransparency = 0})
-        Tween(SoftwareFrame, 0.2, {BackgroundTransparency = 1})
-        Tween(SettingsFrame, 0.2, {BackgroundTransparency = 1})
-        task.wait(0.2)
-        SoftwareFrame.Visible = false
-        SettingsFrame.Visible = false
-        UpdateFriendsList()
-    end
-    State.currentTab = tab
-end
-
-Software.MouseButton1Click:Connect(function() SwitchTab("software") end)
-Settings.MouseButton1Click:Connect(function() SwitchTab("settings") end)
-Friends.MouseButton1Click:Connect(function() SwitchTab("friends") end)
-
---==================================================
--- BUTTON FUNCTIONS
---==================================================
-
-local function ToggleAim()
-    State.aimEnabled = not State.aimEnabled
-    EnableBtn.Text = State.aimEnabled and "◉ DISABLE" or "◉ ENABLE"
-    EnableBtn.BackgroundColor3 = State.aimEnabled and Color3.fromRGB(60,20,20) or Color3.fromRGB(20,80,40)
-    UpdateStatus()
-    if not State.aimEnabled then
-        State.target = nil
-        State.targetCF = nil
-        State.smoothCF = nil
-    end
-end
-
-EnableBtn.MouseButton1Click:Connect(ToggleAim)
-
-MinimizeBtn.MouseButton1Click:Connect(function()
-    State.isMinimized = true
-    Tween(Main, 0.3, {Size = UDim2.fromOffset(200,200), BackgroundTransparency = 1})
-    task.wait(0.3)
-    Main.Visible = false
-    Mini.Visible = true
-    Tween(Mini, 0.3, {Size = UDim2.fromOffset(80,80)})
-end)
-
---==================================================
--- SLIDERS
+-- SLIDERS SETUP
 --==================================================
 
 local function SetupSlider(sliderObj, configKey)
+    local updateConn = nil
+    local endConn = nil
+
     sliderObj.bar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local function update()
@@ -1014,17 +1258,29 @@ local function SetupSlider(sliderObj, configKey)
                 local val = sliderObj.minVal + (sliderObj.maxVal - sliderObj.minVal) * pos
                 Config[configKey] = val
                 sliderObj:Update(val)
+                UpdateStatus()
+                SaveSettings()
             end
             update()
-            local conn
-            conn = UserInputService.InputChanged:Connect(function(inp)
+
+            if updateConn then updateConn:Disconnect() end
+            if endConn then endConn:Disconnect() end
+
+            updateConn = UserInputService.InputChanged:Connect(function(inp)
                 if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
-                    update()
+                    local pos = math.clamp((inp.Position.X - sliderObj.bar.AbsolutePosition.X) / sliderObj.bar.AbsoluteSize.X, 0, 1)
+                    local val = sliderObj.minVal + (sliderObj.maxVal - sliderObj.minVal) * pos
+                    Config[configKey] = val
+                    sliderObj:Update(val)
+                    UpdateStatus()
+                    SaveSettings()
                 end
             end)
-            UserInputService.InputEnded:Connect(function(inp)
+
+            endConn = UserInputService.InputEnded:Connect(function(inp)
                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                    conn:Disconnect()
+                    if updateConn then updateConn:Disconnect() end
+                    if endConn then endConn:Disconnect() end
                 end
             end)
         end
@@ -1034,46 +1290,6 @@ end
 SetupSlider(FOVSlider, "FOV")
 SetupSlider(SmoothSlider, "Smoothness")
 SetupSlider(DistSlider, "Distance")
-
---==================================================
--- OPTIONS
---==================================================
-
-KeepTargetChk.MouseButton1Click:Connect(function()
-    Config.KeepTarget = not Config.KeepTarget
-    KeepTargetChk.Text = Config.KeepTarget and "☑ Keep Target" or "☐ Keep Target"
-end)
-
-IgnoreWallsChk.MouseButton1Click:Connect(function()
-    Config.IgnoreWalls = not Config.IgnoreWalls
-    IgnoreWallsChk.Text = Config.IgnoreWalls and "☑ Ignore Walls" or "☐ Ignore Walls"
-end)
-
-AutoSwitchChk.MouseButton1Click:Connect(function()
-    Config.AutoSwitch = not Config.AutoSwitch
-    AutoSwitchChk.Text = Config.AutoSwitch and "☑ Auto Switch" or "☐ Auto Switch"
-end)
-
---==================================================
--- FRIENDS BUTTONS
---==================================================
-
-FriendConfirm.MouseButton1Click:Connect(function()
-    local name = FriendInfoName.Text
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Name == name and plr ~= Player then
-            table.insert(State.friends, plr)
-            FriendInfoPanel.Visible = false
-            UpdateFriendsList()
-            UpdateStatus()
-            break
-        end
-    end
-end)
-
-FriendCancel.MouseButton1Click:Connect(function()
-    FriendInfoPanel.Visible = false
-end)
 
 --==================================================
 -- AIM LOGIC
@@ -1151,7 +1367,7 @@ local function FindBestTarget()
     local best = nil
     local bestDist = math.huge
     local fovSq = Config.FOV ^ 2
-    
+
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= Player and IsAlive(plr) and not IsFriend(plr) then
             local part = GetAimPart(plr)
@@ -1160,7 +1376,7 @@ local function FindBestTarget()
                 if pos then
                     local dx = pos.X - center.X
                     local dy = pos.Y - center.Y
-                    local d = dx*dx + dy*dy
+                    local d = dx * dx + dy * dy
                     if d < fovSq and d < bestDist then
                         if IsVisible(plr) then
                             best = plr
@@ -1171,30 +1387,30 @@ local function FindBestTarget()
             end
         end
     end
-    
+
     return best
 end
 
 local function UpdateAim(dt)
     if not Camera then return end
     if not State.aimEnabled then return end
-    
+
     State.searchTimer = State.searchTimer + dt
-    
+
     if State.target and IsAlive(State.target) and not IsFriend(State.target) then
         local part = GetAimPart(State.target)
         if part and IsVisible(State.target) then
             State.lostTimer = 0
             local pos = part.Position
             State.targetCF = CFrame.lookAt(Camera.CFrame.Position, pos)
-            
+
             if State.targetCF then
                 State.smoothCF = State.smoothCF and State.smoothCF:Lerp(State.targetCF, Config.Smoothness) or State.targetCF
                 Camera.CFrame = State.smoothCF
             end
             return
         end
-        
+
         State.lostTimer = State.lostTimer + dt
         if State.lostTimer > 0.15 and not Config.KeepTarget then
             State.target = nil
@@ -1202,10 +1418,10 @@ local function UpdateAim(dt)
             State.smoothCF = nil
         end
     end
-    
+
     if State.searchTimer < 0.05 then return end
     State.searchTimer = 0
-    
+
     if Config.AutoSwitch or not State.target then
         local newTarget = FindBestTarget()
         if newTarget then
@@ -1241,14 +1457,15 @@ UserInputService.InputBegan:Connect(function(input)
             Config.BackupPart = "UpperTorso"
         end
         UpdateStatus()
+        SaveSettings()
     end
 end)
 
 --==================================================
--- UPDATE LOOP
+-- UPDATE LOOPS
 --==================================================
 
-RunService.Heartbeat:Connect(function()
+State.heartbeatConn = RunService.Heartbeat:Connect(function()
     for _, system in ipairs(ParticleSystems) do
         if system and system.Update then
             system:Update()
@@ -1256,13 +1473,29 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-RunService.RenderStepped:Connect(function(dt)
+State.renderConn = RunService.RenderStepped:Connect(function(dt)
     pcall(UpdateAim, dt)
+    pcall(UpdateStatus)
+end)
+
+--==================================================
+-- FPS COUNTER
+--==================================================
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        fpsCounter = 0
+        fpsTime = tick()
+    end
 end)
 
 --==================================================
 -- START
 --==================================================
 
+LoadSettings()
+
 UpdateStatus()
-print("NOVA PREMIUM v7.0 LOADED - FULL GUI!")
+
+print("NOVA PREMIUM v9.0 LOADED - FULL REWORK!")
